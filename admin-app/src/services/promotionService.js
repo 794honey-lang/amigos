@@ -2,6 +2,7 @@ import { mockPromotions } from '../mocks/mockPromotions';
 import { useStoreRegistry } from '../store/storeRegistry';
 
 let currentPromotions = [...mockPromotions];
+let storePromoOverrides = {};
 
 export const promotionService = {
   getPromotions: async (scope) => {
@@ -54,5 +55,30 @@ export const promotionService = {
       return { success: true, data: currentPromotions[index] };
     }
     return { success: false, error: 'Promotion not found' };
+  },
+
+  getStorePromoOverrides: async () => {
+    await new Promise(resolve => setTimeout(resolve, 50));
+    return { success: true, data: storePromoOverrides };
+  },
+  
+  updateStorePromoOverride: async (storeId, promoCode, isEnabled) => {
+    await new Promise(resolve => setTimeout(resolve, 50));
+    if (!storePromoOverrides[storeId]) {
+      storePromoOverrides[storeId] = {};
+    }
+    storePromoOverrides[storeId][promoCode] = isEnabled;
+    return { success: true };
+  },
+  
+  bulkUpdateStorePromoOverrides: async (storeIds, promoCode, isEnabled) => {
+    await new Promise(resolve => setTimeout(resolve, 50));
+    storeIds.forEach(storeId => {
+      if (!storePromoOverrides[storeId]) {
+        storePromoOverrides[storeId] = {};
+      }
+      storePromoOverrides[storeId][promoCode] = isEnabled;
+    });
+    return { success: true };
   }
 };
