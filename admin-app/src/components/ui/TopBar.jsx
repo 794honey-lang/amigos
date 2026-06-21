@@ -1,15 +1,17 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { useScopeStore } from '../../store/scopeStore';
 import { useStoreRegistry } from '../../store/storeRegistry';
 import { useUiStore } from '../../store/uiStore';
-import { Bell, MapPin, RefreshCw, Menu } from 'lucide-react';
+import { Bell, MapPin, RefreshCw, Menu, LayoutDashboard } from 'lucide-react';
 
 export const TopBar = () => {
   const { role, user, scope } = useAuthStore();
   const { currentFranchiseId, currentStoreId, resetScope } = useScopeStore();
   const { stores, franchises } = useStoreRegistry();
   const { toggleMobileSidebar } = useUiStore();
+  const navigate = useNavigate();
 
   const activeFranchise = franchises.find(f => f.id === currentFranchiseId || f.id === scope.franchiseId);
   const activeStore = stores.find(s => s.id === currentStoreId || s.id === scope.storeId);
@@ -31,6 +33,31 @@ export const TopBar = () => {
   const breadcrumbs = getBreadcrumbs();
   const isDrilledDown = (role === 'corporate' && (currentFranchiseId || currentStoreId)) ||
                         (role === 'franchise' && currentStoreId);
+
+  // original dashboard return configurations
+  const isCorporateDrilledOrImpersonating = 
+    user?.role === 'corporate' && 
+    (currentFranchiseId || currentStoreId || role !== 'corporate');
+
+  const isFranchiseDrilledDown = 
+    user?.role === 'franchise' && 
+    currentStoreId;
+
+  const showGoBackToDashboard = isCorporateDrilledOrImpersonating || isFranchiseDrilledDown;
+  const originalDashboardLabel = user?.role === 'corporate' ? 'HQ Dashboard' : 'Franchise Dashboard';
+
+  const handleGoBackToOriginalDashboard = () => {
+    if (user?.role === 'corporate') {
+      if (useAuthStore.getState().stopImpersonating) {
+        useAuthStore.getState().stopImpersonating();
+      }
+      resetScope();
+      navigate('/hq');
+    } else if (user?.role === 'franchise') {
+      useScopeStore.getState().setFranchiseScope(scope.franchiseId);
+      navigate('/franchise');
+    }
+  };
 
   return (
     <header className="h-16 bg-white border-b border-border px-4 md:px-6 flex items-center justify-between shadow-sm shrink-0 z-30">
@@ -64,6 +91,17 @@ export const TopBar = () => {
           >
             <RefreshCw className="w-3 h-3 animate-spin" style={{ animationDuration: '3s' }} />
             <span>Clear Drill-Down Scope</span>
+          </button>
+        )}
+
+        {showGoBackToDashboard && (
+          <button
+            onClick={handleGoBackToOriginalDashboard}
+            className="ml-3 flex items-center gap-1 bg-brand/10 hover:bg-brand/20 border border-brand/20 text-brand text-[10px] font-heading font-bold px-2.5 py-0.5 rounded-pill transition-colors cursor-pointer"
+            title={`Return to ${originalDashboardLabel}`}
+          >
+            <LayoutDashboard className="w-3.5 h-3.5" />
+            <span>{originalDashboardLabel}</span>
           </button>
         )}
       </div>

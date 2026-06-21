@@ -40,7 +40,38 @@ export const useAuthStore = create((set) => ({
       permissions: [],
       token: null,
       isAuthenticated: false,
+      isImpersonating: false,
+      originalRole: null,
       error: null
+    });
+  },
+
+  isImpersonating: false,
+  originalRole: null,
+
+  impersonateFranchise: (franchiseId) => {
+    set((state) => {
+      const originalRole = state.originalRole || state.role;
+      return {
+        role: 'franchise',
+        scope: { franchiseId, storeId: null },
+        isImpersonating: true,
+        originalRole
+      };
+    });
+  },
+
+  stopImpersonating: () => {
+    set((state) => {
+      if (state.isImpersonating) {
+        return {
+          role: state.originalRole || 'corporate',
+          scope: { franchiseId: null, storeId: null },
+          isImpersonating: false,
+          originalRole: null
+        };
+      }
+      return {};
     });
   }
 }));

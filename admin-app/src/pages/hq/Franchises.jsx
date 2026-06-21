@@ -117,6 +117,15 @@ export const Franchises = () => {
     }
   };
 
+  const handleViewFranchiseDashboard = (franchiseId, franchiseName) => {
+    if (useAuthStore.getState().impersonateFranchise) {
+      useAuthStore.getState().impersonateFranchise(franchiseId);
+      setFranchiseScope(franchiseId);
+      addToast(`Acting as ${franchiseName}`, 'success');
+      navigate('/franchise');
+    }
+  };
+
   const columns = [
     { key: 'id', header: 'Franchise ID', sortable: true },
     { 
@@ -153,6 +162,13 @@ export const Franchises = () => {
       header: 'Actions',
       render: (row) => (
         <div className="flex gap-2 items-center">
+          <button
+            onClick={() => handleViewFranchiseDashboard(row.id, row.name)}
+            className="p-1 hover:bg-brand/5 text-brand rounded-card border border-brand/10 cursor-pointer"
+            title="View Franchise Dashboard"
+          >
+            <Building2 className="w-3.5 h-3.5" />
+          </button>
           <button
             onClick={() => handleEditFranchiseClick(row)}
             className="p-1 hover:bg-stone-100 text-text-secondary rounded-card border border-stone-200 cursor-pointer"

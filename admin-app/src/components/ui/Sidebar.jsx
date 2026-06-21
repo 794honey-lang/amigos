@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { useUiStore } from '../../store/uiStore';
 import { useScopeStore } from '../../store/scopeStore';
+import { useStoreRegistry } from '../../store/storeRegistry';
 import { Logo } from '@shared/components/ui/Logo';
 import logoImg from '@shared/assets/logo.png';
 import { 
@@ -12,10 +13,13 @@ import {
 } from 'lucide-react';
 
 export const Sidebar = () => {
-  const { role, logout, user } = useAuthStore();
+  const { role, logout, user, isImpersonating, stopImpersonating, impersonateFranchise } = useAuthStore();
   const { sidebarCollapsed, toggleSidebar, mobileSidebarOpen, setMobileSidebarOpen } = useUiStore();
   const { resetScope, currentStoreId } = useScopeStore();
   const navigate = useNavigate();
+
+  const [showHeaderDropdown, setShowHeaderDropdown] = useState(false);
+  const [showFranchiseSelector, setShowFranchiseSelector] = useState(false);
 
   const handleLogout = () => {
     logout();
@@ -81,17 +85,44 @@ export const Sidebar = () => {
         />
       )}
       <aside className={`bg-dark text-white flex flex-col transition-all duration-300 ${sidebarCollapsed ? 'md:w-16' : 'md:w-64'} w-64 h-screen z-50 shrink-0 shadow-lg fixed md:relative top-0 bottom-0 left-0 ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} md:translate-x-0`}>
-      <div className={`flex items-center ${sidebarCollapsed ? 'h-16 justify-center' : 'py-3 justify-start pl-5'} border-b border-white/10 overflow-hidden shrink-0`}>
+      <div 
+        className={`relative flex items-center ${sidebarCollapsed ? 'h-16 justify-center' : 'py-3 justify-start pl-5'} border-b border-white/10 overflow-hidden shrink-0 ${isImpersonating ? 'cursor-pointer hover:bg-white/5' : ''}`}
+        onClick={() => {
+          if (isImpersonating) {
+            setShowHeaderDropdown(!showHeaderDropdown);
+          }
+        }}
+      >
         {!sidebarCollapsed && (
           <div className="flex flex-col items-start">
             <Logo size="sm" className="!items-start !text-left -ml-3 mb-1" />
-            <span className="text-[9px] text-white/50 tracking-wider font-heading uppercase pl-0.5 font-semibold">
-              {role === 'corporate' ? 'HQ Admin' : role === 'franchise' ? 'Franchise' : 'Store Portal'}
+            <span className="text-[9px] text-white/50 tracking-wider font-heading uppercase pl-0.5 font-semibold flex items-center gap-1.5">
+              <span>{role === 'corporate' ? 'HQ Admin' : role === 'franchise' ? 'Franchise' : 'Store Portal'}</span>
+              {isImpersonating && (
+                <span className="text-[8px] text-amber-500 font-bold bg-amber-500/10 px-1 py-0.2 rounded border border-amber-500/25 lowercase">(acting)</span>
+              )}
             </span>
           </div>
         )}
         {sidebarCollapsed && (
           <img src={logoImg} alt="Amigos" className="w-8 h-8 object-contain" />
+        )}
+
+        {isImpersonating && showHeaderDropdown && !sidebarCollapsed && (
+          <div className="absolute top-14 left-4 right-4 bg-white border border-stone-200 rounded-card shadow-lg p-1.5 z-50 text-dark animate-fadeIn">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                stopImpersonating();
+                resetScope();
+                setShowHeaderDropdown(false);
+                navigate('/hq');
+              }}
+              className="w-full text-left px-2 py-1.5 rounded text-[11px] font-heading font-semibold hover:bg-stone-50 hover:text-brand transition-colors cursor-pointer"
+            >
+              Return to HQ Dashboard
+            </button>
+          </div>
         )}
       </div>
 
@@ -124,11 +155,53 @@ export const Sidebar = () => {
         })}
       </nav>
 
-      <div className="border-t border-white/10 p-3 flex flex-col gap-3">
+      <div className="relative border-t border-white/10 p-3 flex flex-col gap-3">
+        {showFranchiseSelector && !sidebarCollapsed && (
+          <div className="absolute bottom-16 left-3 right-3 bg-white border border-stone-200 rounded-card shadow-lg p-2 z-50 text-dark animate-fadeIn">
+            <div className="text-[8px] font-heading font-extrabold text-stone-400 uppercase px-2 py-1 tracking-wider border-b border-stone-150 mb-1">
+              Impersonate Franchise:
+            </div>
+            <div className="space-y-0.5 max-h-40 overflow-y-auto custom-scrollbar">
+              {useStoreRegistry.getState().franchises.map(f => (
+                <button
+                  key={f.id}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    impersonateFranchise(f.id);
+                    useScopeStore.getState().setFranchiseScope(f.id);
+                    setShowFranchiseSelector(false);
+                    navigate('/franchise');
+                  }}
+                  className="w-full text-left px-2 py-1 text-xs font-heading font-semibold hover:bg-stone-50 hover:text-brand rounded transition-colors cursor-pointer"
+                >
+                  {f.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {!sidebarCollapsed && user && (
-          <div className="bg-white/5 p-2.5 rounded-card flex flex-col">
-            <span className="text-xs font-semibold text-white truncate">{user.name}</span>
+          <div 
+            onClick={() => {
+              if (user.role === 'corporate') {
+                setShowFranchiseSelector(!showFranchiseSelector);
+              }
+            }}
+            className={`p-2.5 rounded-card flex flex-col ${user.role === 'corporate' ? 'bg-white/5 hover:bg-white/10 cursor-pointer border border-white/5 hover:border-white/10' : 'bg-white/5'}`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-white truncate">{user.name}</span>
+              {user.role === 'corporate' && (
+                <span className="text-[8px] font-heading font-bold text-amber-500 bg-amber-500/10 px-1 rounded uppercase tracking-wider">HQ</span>
+              )}
+            </div>
             <span className="text-[10px] text-white/40 truncate">{user.email}</span>
+            {user.role === 'corporate' && (
+              <span className="text-[8.5px] text-brand font-heading font-bold mt-1 text-left hover:underline">
+                {isImpersonating ? 'Change impersonation...' : 'Impersonate Franchise...'}
+              </span>
+            )}
           </div>
         )}
         <div className="flex gap-2">
