@@ -319,7 +319,7 @@ export const Menu = () => {
     <AdminLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="bg-white p-5 rounded-card border border-border shadow-sm flex justify-between items-center">
+        <div className="bg-white p-5 rounded-card border border-border shadow-sm flex flex-col sm:flex-row gap-4 sm:justify-between sm:items-center">
           <div>
             <h1 className="text-base font-heading font-extrabold text-text-primary">
               Master Menu Catalog

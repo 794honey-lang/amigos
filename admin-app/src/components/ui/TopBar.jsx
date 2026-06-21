@@ -2,12 +2,14 @@ import React from 'react';
 import { useAuthStore } from '../../store/authStore';
 import { useScopeStore } from '../../store/scopeStore';
 import { useStoreRegistry } from '../../store/storeRegistry';
-import { Bell, MapPin, RefreshCw } from 'lucide-react';
+import { useUiStore } from '../../store/uiStore';
+import { Bell, MapPin, RefreshCw, Menu } from 'lucide-react';
 
 export const TopBar = () => {
   const { role, user, scope } = useAuthStore();
   const { currentFranchiseId, currentStoreId, resetScope } = useScopeStore();
   const { stores, franchises } = useStoreRegistry();
+  const { toggleMobileSidebar } = useUiStore();
 
   const activeFranchise = franchises.find(f => f.id === currentFranchiseId || f.id === scope.franchiseId);
   const activeStore = stores.find(s => s.id === currentStoreId || s.id === scope.storeId);
@@ -31,8 +33,15 @@ export const TopBar = () => {
                         (role === 'franchise' && currentStoreId);
 
   return (
-    <header className="h-16 bg-white border-b border-border px-6 flex items-center justify-between shadow-sm shrink-0 z-30">
+    <header className="h-16 bg-white border-b border-border px-4 md:px-6 flex items-center justify-between shadow-sm shrink-0 z-30">
       <div className="flex items-center gap-2">
+        <button 
+          onClick={toggleMobileSidebar} 
+          className="p-1.5 -ml-1 mr-1 text-text-secondary hover:bg-stone-100 active:scale-95 rounded-card md:hidden transition-all cursor-pointer"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+        
         {breadcrumbs.map((crumb, idx) => (
           <React.Fragment key={idx}>
             {idx > 0 && <span className="text-text-muted text-xs">/</span>}

@@ -13,7 +13,7 @@ import {
 
 export const Sidebar = () => {
   const { role, logout, user } = useAuthStore();
-  const { sidebarCollapsed, toggleSidebar } = useUiStore();
+  const { sidebarCollapsed, toggleSidebar, mobileSidebarOpen, setMobileSidebarOpen } = useUiStore();
   const { resetScope, currentStoreId } = useScopeStore();
   const navigate = useNavigate();
 
@@ -73,7 +73,14 @@ export const Sidebar = () => {
   const navLinks = getNavLinks();
 
   return (
-    <aside className={`bg-dark text-white flex flex-col transition-all duration-300 ${sidebarCollapsed ? 'w-16' : 'w-64'} h-screen z-40 shrink-0 shadow-lg relative`}>
+    <>
+      {mobileSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-45 md:hidden"
+          onClick={() => setMobileSidebarOpen(false)}
+        />
+      )}
+      <aside className={`bg-dark text-white flex flex-col transition-all duration-300 ${sidebarCollapsed ? 'md:w-16' : 'md:w-64'} w-64 h-screen z-50 shrink-0 shadow-lg fixed md:relative top-0 bottom-0 left-0 ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} md:translate-x-0`}>
       <div className={`flex items-center ${sidebarCollapsed ? 'h-16 justify-center' : 'py-3 justify-start pl-5'} border-b border-white/10 overflow-hidden shrink-0`}>
         {!sidebarCollapsed && (
           <div className="flex flex-col items-start">
@@ -96,6 +103,7 @@ export const Sidebar = () => {
               key={link.to}
               to={link.to}
               end={link.to === '/hq' || link.to === '/franchise' || link.to === '/store'}
+              onClick={() => setMobileSidebarOpen(false)}
               className={({ isActive }) => 
                 `flex items-center gap-3 px-3 py-2.5 rounded-card text-sm font-heading font-medium transition-all ${
                   isActive 
@@ -142,6 +150,7 @@ export const Sidebar = () => {
         </div>
       </div>
     </aside>
+    </>
   );
 };
 
