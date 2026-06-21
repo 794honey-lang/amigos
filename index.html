@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Amigos Monorepo Portal</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&family=Plus+Jakarta+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      --bg-dark: #121212;
+      --card-bg: rgba(255, 255, 255, 0.03);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --brand: #a81c1c;
+      --brand-accent: #c22929;
+      --gold: #dfad36;
+      --text-primary: #ffffff;
+      --text-secondary: #a0a0a0;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-primary);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 2rem 1.5rem;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    /* Ambient Glow Backgrounds */
+    .glow-circle {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(140px);
+      z-index: 0;
+      opacity: 0.45;
+    }
+    
+    .glow-1 {
+      width: 400px;
+      height: 400px;
+      background: var(--brand);
+      top: -100px;
+      left: -100px;
+    }
+
+    .glow-2 {
+      width: 400px;
+      height: 400px;
+      background: var(--gold);
+      bottom: -150px;
+      right: -100px;
+    }
+
+    .container {
+      max-width: 1000px;
+      width: 100%;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 3.5rem;
+    }
+
+    /* Header styling */
+    header {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .logo-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .logo-symbol {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--brand), var(--brand-accent));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 8px 24px rgba(168, 28, 28, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .logo-symbol svg {
+      width: 26px;
+      height: 26px;
+      color: white;
+    }
+
+    h1 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 2.75rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+      background: linear-gradient(135deg, #ffffff 40%, #e0e0e0 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    header p {
+      color: var(--text-secondary);
+      font-size: 1.05rem;
+      max-width: 500px;
+      line-height: 1.5;
+    }
+
+    /* App cards grid */
+    .grid {
+      display: grid;
+      grid-template-cols: 1fr;
+      gap: 1.75rem;
+      width: 100%;
+    }
+
+    @media (min-width: 768px) {
+      .grid {
+        grid-template-cols: repeat(3, 1fr);
+      }
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      padding: 2.25rem 2rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1.75rem;
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+      position: relative;
+      overflow: hidden;
+      text-decoration: none;
+      color: inherit;
+    }
+
+    .card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.05), transparent);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      z-index: 0;
+    }
+
+    .card:hover {
+      transform: translateY(-8px);
+      border-color: rgba(255, 255, 255, 0.2);
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .card:hover::before {
+      opacity: 1;
+    }
+
+    .card-content {
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .icon-container {
+      width: 60px;
+      height: 60px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--card-border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s ease;
+      margin-bottom: 0.5rem;
+    }
+
+    .card:hover .icon-container {
+      border-color: rgba(255, 255, 255, 0.25);
+      background: rgba(255, 255, 255, 0.07);
+    }
+
+    .card-customer .icon-container svg { color: var(--gold); }
+    .card-restaurant .icon-container svg { color: #f25f5c; }
+    .card-admin .icon-container svg { color: var(--brand-accent); }
+
+    .card h2 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.35rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+
+    .card p {
+      color: var(--text-secondary);
+      font-size: 0.875rem;
+      line-height: 1.6;
+      max-width: 230px;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 0.875rem;
+      border-radius: 12px;
+      font-weight: 600;
+      font-size: 0.875rem;
+      text-align: center;
+      transition: all 0.3s ease;
+      z-index: 1;
+      border: 1px solid transparent;
+    }
+
+    .card-customer .btn {
+      background: rgba(223, 173, 54, 0.08);
+      color: var(--gold);
+      border-color: rgba(223, 173, 54, 0.15);
+    }
+    
+    .card-customer:hover .btn {
+      background: var(--gold);
+      color: #121212;
+      box-shadow: 0 6px 20px rgba(223, 173, 54, 0.3);
+      border-color: transparent;
+    }
+
+    .card-restaurant .btn {
+      background: rgba(242, 95, 92, 0.08);
+      color: #f25f5c;
+      border-color: rgba(242, 95, 92, 0.15);
+    }
+
+    .card-restaurant:hover .btn {
+      background: #f25f5c;
+      color: white;
+      box-shadow: 0 6px 20px rgba(242, 95, 92, 0.3);
+      border-color: transparent;
+    }
+
+    .card-admin .btn {
+      background: rgba(168, 28, 28, 0.08);
+      color: var(--brand-accent);
+      border-color: rgba(168, 28, 28, 0.15);
+    }
+
+    .card-admin:hover .btn {
+      background: var(--brand);
+      color: white;
+      box-shadow: 0 6px 20px rgba(168, 28, 28, 0.3);
+      border-color: transparent;
+    }
+
+    /* Footer styling */
+    footer {
+      z-index: 1;
+      color: rgba(255, 255, 255, 0.3);
+      font-size: 0.75rem;
+      margin-top: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <!-- Blurry glow dots -->
+  <div class="glow-circle glow-1"></div>
+  <div class="glow-circle glow-2"></div>
+
+  <div class="container">
+    <header>
+      <div class="logo-container">
+        <div class="logo-symbol">
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+          </svg>
+        </div>
+      </div>
+      <h1>Amigos Platform</h1>
+      <p>A multi-cuisine digital ecosystem. Select an application workspace below to enter the portal.</p>
+    </header>
+
+    <div class="grid">
+      <!-- Customer Card -->
+      <a href="./customer/" class="card card-customer">
+        <div class="card-content">
+          <div class="icon-container">
+            <svg width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+            </svg>
+          </div>
+          <h2>Customer App</h2>
+          <p>Order delicious pizzas, customize toppings, select sizes, track delivery status, and view active promotions.</p>
+        </div>
+        <div class="btn">Launch Application</div>
+      </a>
+
+      <!-- Restaurant Card -->
+      <a href="./restaurant/" class="card card-restaurant">
+        <div class="card-content">
+          <div class="icon-container">
+            <svg width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+            </svg>
+          </div>
+          <h2>Store Portal</h2>
+          <p>Manage real-time order queues, toggle item availability, adjust operating hours, and edit delivery polygons.</p>
+        </div>
+        <div class="btn">Launch Portal</div>
+      </a>
+
+      <!-- Corporate Admin Card -->
+      <a href="./admin/" class="card card-admin">
+        <div class="card-content">
+          <div class="icon-container">
+            <svg width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+            </svg>
+          </div>
+          <h2>Admin Console</h2>
+          <p>Manage master menu offerings, configure pricing tiers, onboard franchise partners, and audit network reports.</p>
+        </div>
+        <div class="btn">Launch Console</div>
+      </a>
+    </div>
+
+    <footer>
+      &copy; 2026 Amigos Inc. All rights reserved.
+    </footer>
+  </div>
+</body>
+</html>
