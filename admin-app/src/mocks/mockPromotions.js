@@ -1,0 +1,72 @@
+export const mockPromotions = [
+  {
+    code: 'AMIGOS20',
+    title: 'Cheese Burst Fiesta',
+    description: 'Flat 20% OFF up to ₹100',
+    discountType: 'percentage',
+    discountValue: 20,
+    minOrderValue: 299,
+    maxDiscount: 100,
+    startDate: '2026-06-01',
+    endDate: '2026-07-31',
+    scopeType: 'national',
+    scopeId: null,
+    isActive: true
+  },
+  {
+    code: 'FIESTA150',
+    title: 'Weekend Combo Specials',
+    description: 'Save up to ₹150 on combos',
+    discountType: 'flat',
+    discountValue: 150,
+    minOrderValue: 699,
+    maxDiscount: 150,
+    startDate: '2026-06-01',
+    endDate: '2026-06-30',
+    scopeType: 'national',
+    scopeId: null,
+    isActive: true
+  },
+  {
+    code: 'NORTH50',
+    title: 'North Region Special',
+    description: 'Flat ₹50 OFF for Northern stores',
+    discountType: 'flat',
+    discountValue: 50,
+    minOrderValue: 350,
+    maxDiscount: 50,
+    startDate: '2026-06-10',
+    endDate: '2026-06-30',
+    scopeType: 'regional',
+    scopeId: 'fr_001',
+    isActive: true
+  },
+  {
+    code: 'WEST25',
+    title: 'West Coast Monsoon Deal',
+    description: '25% OFF on all pizzas',
+    discountType: 'percentage',
+    discountValue: 25,
+    minOrderValue: 400,
+    maxDiscount: 120,
+    startDate: '2026-06-15',
+    endDate: '2026-07-15',
+    scopeType: 'regional',
+    scopeId: 'fr_002',
+    isActive: true
+  },
+  {
+    code: 'CIVILLINES',
+    title: 'Civil Lines Opening Offer',
+    description: 'Flat ₹100 OFF at Civil Lines store',
+    discountType: 'flat',
+    discountValue: 100,
+    minOrderValue: 500,
+    maxDiscount: 100,
+    startDate: '2026-06-01',
+    endDate: '2026-06-30',
+    scopeType: 'store',
+    scopeId: 'store_001',
+    isActive: true
+  }
+];

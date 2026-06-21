@@ -1,0 +1,17 @@
+{
+  "name": "amigos-monorepo",
+  "private": true,
+  "workspaces": [
+    "customer-app",
+    "restaurant-app",
+    "admin-app"
+  ],
+  "scripts": {
+    "customer:dev": "npm run dev -w customer-app",
+    "customer:build": "npm run build -w customer-app",
+    "restaurant:dev": "npm run dev -w restaurant-app",
+    "restaurant:build": "npm run build -w restaurant-app",
+    "admin:dev": "npm run dev -w admin-app",
+    "admin:build": "npm run build -w admin-app"
+  }
+}
