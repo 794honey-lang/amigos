@@ -1,69 +1,120 @@
-import { usePromotionStore } from '@shared/store/promotionStore';
-import { useStoreRegistry } from '../store/storeRegistry';
+const API_URL = 'http://localhost:5050/api';
 
 export const promotionService = {
   getPromotions: async (scope) => {
-    await new Promise(resolve => setTimeout(resolve, 200));
-    const { franchiseId, storeId } = scope || {};
-    const stores = useStoreRegistry.getState().stores;
-    const { promotions, storePromoOverrides } = usePromotionStore.getState();
-    
-    if (storeId) {
-      const store = stores.find(s => s.id === storeId);
-      const storeFranchiseId = store ? store.franchiseId : null;
+    try {
+      const { franchiseId, storeId } = scope || {};
       
-      return {
-        success: true,
-        data: promotions.filter(p => {
-          const isOverriddenDisabled = storePromoOverrides[storeId]?.[p.code] === false;
-          if (isOverriddenDisabled) return false;
+      const [promoRes, overrideRes] = await Promise.all([
+        fetch(`${API_URL}/promotions`),
+        fetch(`${API_URL}/promotions/overrides`)
+      ]);
+      
+      const promoData = await promoRes.json();
+      const overrideData = await overrideRes.json();
+      
+      if (!promoData.success) return promoData;
+      const promotions = promoData.data;
+      const storePromoOverrides = overrideData.success ? overrideData.data : {};
+      
+      if (storeId) {
+        const { useStoreRegistry } = await import('../store/storeRegistry');
+        const stores = useStoreRegistry.getState().stores;
+        const store = stores.find(s => s.id === storeId);
+        const storeFranchiseId = store ? store.franchiseId : null;
+        
+        return {
+          success: true,
+          data: promotions.filter(p => {
+            const isOverriddenDisabled = storePromoOverrides[storeId]?.[p.code] === false;
+            if (isOverriddenDisabled) return false;
 
-          return p.scopeType === 'national' ||
-            (p.scopeType === 'regional' && p.scopeId === storeFranchiseId) ||
-            (p.scopeType === 'store' && p.scopeId === storeId);
-        })
-      };
+            return p.scopeType === 'national' ||
+              (p.scopeType === 'regional' && p.scopeId === storeFranchiseId) ||
+              (p.scopeType === 'store' && p.scopeId === storeId);
+          })
+        };
+      }
+      
+      if (franchiseId) {
+        return {
+          success: true,
+          data: promotions.filter(p => 
+            p.scopeType === 'national' ||
+            (p.scopeType === 'regional' && p.scopeId === franchiseId)
+          )
+        };
+      }
+      
+      return { success: true, data: promotions };
+    } catch (e) {
+      return { success: false, error: e.message };
     }
-    
-    if (franchiseId) {
-      return {
-        success: true,
-        data: promotions.filter(p => 
-          p.scopeType === 'national' ||
-          (p.scopeType === 'regional' && p.scopeId === franchiseId)
-        )
-      };
-    }
-    
-    return { success: true, data: promotions };
   },
 
   createPromotion: async (promoData) => {
-    await new Promise(resolve => setTimeout(resolve, 200));
-    usePromotionStore.getState().createPromotion(promoData);
-    return { success: true, data: promoData };
+    try {
+      const res = await fetch(`${API_URL}/promotions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(promoData)
+      });
+      const data = await res.json();
+      return data;
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
   },
 
   togglePromotionStatus: async (code, isActive) => {
-    await new Promise(resolve => setTimeout(resolve, 150));
-    usePromotionStore.getState().togglePromotionStatus(code, isActive);
-    return { success: true };
+    try {
+      const res = await fetch(`${API_URL}/promotions/${code}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive })
+      });
+      const data = await res.json();
+      return data;
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
   },
 
   getStorePromoOverrides: async () => {
-    await new Promise(resolve => setTimeout(resolve, 50));
-    return { success: true, data: usePromotionStore.getState().storePromoOverrides };
+    try {
+      const res = await fetch(`${API_URL}/promotions/overrides`);
+      const data = await res.json();
+      return data;
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
   },
   
   updateStorePromoOverride: async (storeId, promoCode, isEnabled) => {
-    await new Promise(resolve => setTimeout(resolve, 50));
-    usePromotionStore.getState().updateStorePromoOverride(storeId, promoCode, isEnabled);
-    return { success: true };
+    try {
+      const res = await fetch(`${API_URL}/promotions/overrides`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ storeId, promoCode, enabled: isEnabled })
+      });
+      const data = await res.json();
+      return data;
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
   },
   
   bulkUpdateStorePromoOverrides: async (storeIds, promoCode, isEnabled) => {
-    await new Promise(resolve => setTimeout(resolve, 50));
-    usePromotionStore.getState().bulkUpdateStorePromoOverrides(storeIds, promoCode, isEnabled);
-    return { success: true };
+    try {
+      const res = await fetch(`${API_URL}/promotions/overrides/bulk`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ storeIds, promoCode, enabled: isEnabled })
+      });
+      const data = await res.json();
+      return data;
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
   }
 };

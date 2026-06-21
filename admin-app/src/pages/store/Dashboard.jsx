@@ -93,10 +93,13 @@ export const Dashboard = () => {
     const interval = setInterval(() => {
       if (!storeOpen) return; // Don't receive orders if paused
       
-      const newOrder = orderService.injectFakeOrder(activeStoreId);
-      playChime();
-      addToast(`New order ${newOrder.id} received!`, 'warning');
-      loadDashboardData();
+      orderService.injectFakeOrder(activeStoreId).then(res => {
+        if (res.success) {
+          playChime();
+          addToast(`New order ${res.data.id} received!`, 'warning');
+          loadDashboardData();
+        }
+      });
     }, 20000); // Inject every 20 seconds
 
     return () => clearInterval(interval);

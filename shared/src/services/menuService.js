@@ -1,89 +1,58 @@
-import { mockMenuItems } from '../mocks/mockMenuItems';
-import { mockCategories } from '../mocks/mockCategories';
-
-const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const API_URL = 'http://localhost:5050/api';
 
 export const menuService = {
   async getCategories() {
-    await delay(200);
-    return { success: true, data: mockCategories };
+    try {
+      const res = await fetch(`${API_URL}/categories`);
+      return await res.json();
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
   },
 
-  async getMenuItems({ category, isVeg, search } = {}) {
-    await delay(300);
-    let items = [...mockMenuItems];
-    
-    // Check local storage for restaurant-level availability overrides
+  async getMenuItems({ category, isVeg, search, storeId } = {}) {
     try {
-      const storedAvailability = localStorage.getItem('amigos_menu_availability');
-      if (storedAvailability) {
-        const availabilityMap = JSON.parse(storedAvailability);
-        items = items.map(item => {
-          if (item.id in availabilityMap) {
-            return { ...item, available: availabilityMap[item.id] };
-          }
-          return { ...item, available: true }; // default to available
-        });
-      } else {
-        items = items.map(item => ({ ...item, available: true }));
-      }
-    } catch (e) {
-      items = items.map(item => ({ ...item, available: true }));
-    }
+      const params = new URLSearchParams();
+      if (category) params.append('category', category);
+      if (isVeg !== undefined && isVeg !== null) params.append('isVeg', String(isVeg));
+      if (search) params.append('search', search);
+      
+      const activeStoreId = storeId || localStorage.getItem('amigos_active_store') || 'store_001';
+      params.append('storeId', activeStoreId);
 
-    if (category) {
-      items = items.filter(item => item.category === category);
+      const res = await fetch(`${API_URL}/menu?${params.toString()}`);
+      return await res.json();
+    } catch (e) {
+      return { success: false, error: e.message };
     }
-    
-    if (isVeg !== undefined && isVeg !== null) {
-      items = items.filter(item => item.isVeg === isVeg);
-    }
-    
-    if (search) {
-      const query = search.toLowerCase();
-      items = items.filter(item => 
-        item.name.toLowerCase().includes(query) || 
-        item.description.toLowerCase().includes(query)
-      );
-    }
-    
-    return { success: true, data: items };
   },
 
   async getMenuItem(id) {
-    await delay(200);
-    const items = [...mockMenuItems];
-    
-    // Map availability
-    let available = true;
     try {
-      const storedAvailability = localStorage.getItem('amigos_menu_availability');
-      if (storedAvailability) {
-        const availabilityMap = JSON.parse(storedAvailability);
-        if (id in availabilityMap) {
-          available = availabilityMap[id];
-        }
+      const activeStoreId = localStorage.getItem('amigos_active_store') || 'store_001';
+      const res = await fetch(`${API_URL}/menu?storeId=${activeStoreId}`);
+      const data = await res.json();
+      if (data.success) {
+        const item = data.data.find(i => i.id === id);
+        return item ? { success: true, data: item } : { success: false, error: 'Item not found' };
       }
-    } catch (e) {}
-
-    const item = items.find(i => i.id === id);
-    if (!item) {
-      return { success: false, error: 'Item not found' };
+      return data;
+    } catch (e) {
+      return { success: false, error: e.message };
     }
-    
-    return { success: true, data: { ...item, available } };
   },
 
   async updateItemAvailability(id, available) {
-    await delay(200);
     try {
-      const storedAvailability = localStorage.getItem('amigos_menu_availability') || '{}';
-      const availabilityMap = JSON.parse(storedAvailability);
-      availabilityMap[id] = available;
-      localStorage.setItem('amigos_menu_availability', JSON.stringify(availabilityMap));
-      return { success: true, data: { id, available } };
+      const storeId = localStorage.getItem('amigos_active_store') || 'store_001';
+      const res = await fetch(`${API_URL}/menu/availability`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, storeId, available })
+      });
+      return await res.json();
     } catch (e) {
-      return { success: false, error: 'Failed to update availability' };
+      return { success: false, error: e.message };
     }
   }
 };

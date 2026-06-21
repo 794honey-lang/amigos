@@ -3,12 +3,14 @@
   "private": true,
   "workspaces": [
     "customer-app",
-    "admin-app"
+    "admin-app",
+    "backend-api"
   ],
   "scripts": {
     "customer:dev": "npm run dev -w customer-app",
     "customer:build": "npm run build -w customer-app",
     "admin:dev": "npm run dev -w admin-app",
-    "admin:build": "npm run build -w admin-app"
+    "admin:build": "npm run build -w admin-app",
+    "backend:dev": "npm run dev -w backend-api"
   }
 }

@@ -1,151 +1,147 @@
-import { mockOrders } from '../mocks/mockOrders';
-
-const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
+const API_URL = 'http://localhost:5050/api';
 const STATUS_SEQUENCE = ['Placed', 'Confirmed', 'Preparing', 'Ready', 'OutForDelivery', 'Delivered'];
-
-// Get orders list from localStorage if it exists, otherwise initialize with mockOrders
-const getPersistedOrders = () => {
-  try {
-    const stored = localStorage.getItem('amigos_orders');
-    if (stored) {
-      return JSON.parse(stored);
-    }
-    localStorage.setItem('amigos_orders', JSON.stringify(mockOrders));
-    return mockOrders;
-  } catch (e) {
-    return mockOrders;
-  }
-};
-
-const savePersistedOrders = (orders) => {
-  try {
-    localStorage.setItem('amigos_orders', JSON.stringify(orders));
-  } catch (e) {}
-};
-
-// Map of active intervals for order status simulation
 const activeSimulations = {};
 
 export const orderService = {
   async getOrders() {
-    await delay(300);
-    return { success: true, data: getPersistedOrders() };
+    try {
+      const res = await fetch(`${API_URL}/orders`);
+      return await res.json();
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
   },
 
   async getOrderById(id) {
-    await delay(200);
-    const orders = getPersistedOrders();
-    const order = orders.find(o => o.id === id);
-    if (!order) {
-      return { success: false, error: 'Order not found' };
+    try {
+      const res = await fetch(`${API_URL}/orders/${id}`);
+      return await res.json();
+    } catch (e) {
+      return { success: false, error: e.message };
     }
-    return { success: true, data: order };
   },
 
   async placeOrder(payload) {
-    await delay(500);
-    
-    // Generate a fake order ID e.g. A1250, A1251...
-    const orders = getPersistedOrders();
-    const lastId = orders.length > 0 ? orders[0].id : 'A1000';
-    const numPart = parseInt(lastId.replace(/\D/g, '')) || 1000;
-    const newId = `A${numPart + 1}`;
-    
-    const newOrder = {
-      id: newId,
-      date: 'Today, ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      items: payload.items,
-      itemTotal: payload.itemTotal,
-      deliveryFee: payload.deliveryFee,
-      taxes: payload.taxes,
-      discount: payload.discount,
-      toPay: payload.toPay,
-      status: 'Placed',
-      paymentMethod: payload.paymentMethod || 'UPI',
-      address: payload.address,
-      customer: payload.customer || { name: 'Rahul Sharma', phone: '9876543210' }
-    };
-    
-    // Prepend new order to list
-    const updatedOrders = [newOrder, ...orders];
-    savePersistedOrders(updatedOrders);
-    
-    // Auto-start status progression for this order
-    this.startStatusSimulation(newId);
-
-    return { success: true, data: newOrder };
+    try {
+      const storeId = localStorage.getItem('amigos_active_store') || 'store_001';
+      const storeName = localStorage.getItem('amigos_active_store_name') || 'Civil Lines, Jammu';
+      const payloadWithStore = {
+        ...payload,
+        storeId,
+        storeName
+      };
+      const res = await fetch(`${API_URL}/orders`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payloadWithStore)
+      });
+      const data = await res.json();
+      if (data.success) {
+        // Start status progression simulation in backend database
+        this.startStatusSimulation(data.data.id);
+      }
+      return data;
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
   },
 
-  // Simulate order status progression: advances status every 8-10 seconds
+  // Simulate order status progression by making API calls to PostgreSQL
   startStatusSimulation(orderId) {
     if (activeSimulations[orderId]) return;
 
-    const intervalId = setInterval(() => {
-      const orders = getPersistedOrders();
-      const orderIndex = orders.findIndex(o => o.id === orderId);
-      
-      if (orderIndex === -1) {
-        clearInterval(intervalId);
-        delete activeSimulations[orderId];
-        return;
+    const intervalId = setInterval(async () => {
+      try {
+        const orderRes = await this.getOrderById(orderId);
+        if (!orderRes.success) {
+          clearInterval(intervalId);
+          delete activeSimulations[orderId];
+          return;
+        }
+
+        const order = orderRes.data;
+        const currentStatus = order.status;
+
+        if (currentStatus === 'Delivered' || currentStatus === 'Cancelled') {
+          clearInterval(intervalId);
+          delete activeSimulations[orderId];
+          return;
+        }
+
+        const currentIdx = STATUS_SEQUENCE.indexOf(currentStatus);
+        if (currentIdx !== -1 && currentIdx < STATUS_SEQUENCE.length - 1) {
+          const nextStatus = STATUS_SEQUENCE[currentIdx + 1];
+          
+          // Update status in PostgreSQL database
+          await this.updateOrderStatus(orderId, nextStatus);
+
+          // If out for delivery, start mocking rider location updates in Redis
+          if (nextStatus === 'OutForDelivery') {
+            this.startRiderLocationSimulation(orderId);
+          }
+        }
+      } catch (err) {
+        console.error('Error simulating status progression:', err);
       }
-      
-      const order = orders[orderIndex];
-      const currentStatus = order.status;
-      
-      if (currentStatus === 'Delivered' || currentStatus === 'Cancelled') {
-        clearInterval(intervalId);
-        delete activeSimulations[orderId];
-        return;
-      }
-      
-      const currentIdx = STATUS_SEQUENCE.indexOf(currentStatus);
-      if (currentIdx !== -1 && currentIdx < STATUS_SEQUENCE.length - 1) {
-        const nextStatus = STATUS_SEQUENCE[currentIdx + 1];
-        
-        // Update order status
-        orders[orderIndex] = {
-          ...order,
-          status: nextStatus
-        };
-        
-        savePersistedOrders(orders);
-        
-        // Trigger a custom event to notify stores or active screens
-        const event = new CustomEvent('amigos_order_status_updated', {
-          detail: { orderId, status: nextStatus }
-        });
-        window.dispatchEvent(event);
-      }
-    }, 10000); // 10 seconds
+    }, 15000); // Progress status every 15 seconds
 
     activeSimulations[orderId] = intervalId;
   },
 
-  // Allows manual status progression (e.g. from Restaurant App)
-  async updateOrderStatus(orderId, status) {
-    await delay(300);
-    const orders = getPersistedOrders();
-    const orderIndex = orders.findIndex(o => o.id === orderId);
-    
-    if (orderIndex === -1) {
-      return { success: false, error: 'Order not found' };
-    }
-    
-    orders[orderIndex] = {
-      ...orders[orderIndex],
-      status: status
-    };
-    
-    savePersistedOrders(orders);
-    
-    // Trigger custom event
-    const event = new CustomEvent('amigos_order_status_updated', {
-      detail: { orderId, status }
-    });
-    window.dispatchEvent(event);
+  // Mock rider coordinates updates directly into Redis
+  startRiderLocationSimulation(orderId) {
+    let step = 0;
+    // Route steps coordinates around Jammu Civil Lines
+    const route = [
+      { lat: 32.7056, lng: 74.8724 },
+      { lat: 32.7065, lng: 74.8732 },
+      { lat: 32.7072, lng: 74.8740 },
+      { lat: 32.7081, lng: 74.8748 },
+      { lat: 32.7090, lng: 74.8755 }
+    ];
 
-    return { success: true, data: orders[orderIndex] };
+    const riderInterval = setInterval(async () => {
+      if (step >= route.length) {
+        clearInterval(riderInterval);
+        return;
+      }
+      
+      const coords = route[step];
+      try {
+        await fetch(`${API_URL}/rider/location`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            orderId,
+            latitude: coords.lat,
+            longitude: coords.lng
+          })
+        });
+        step++;
+      } catch (e) {
+        console.error('Failed to post rider simulation coords to Redis:', e);
+      }
+    }, 4000); // Update location in Redis every 4 seconds
+  },
+
+  async updateOrderStatus(orderId, status) {
+    try {
+      const res = await fetch(`${API_URL}/orders/${orderId}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      });
+      const data = await res.json();
+      if (data.success) {
+        // Dispatch local event for components loaded in same window
+        const event = new CustomEvent('amigos_order_status_updated', {
+          detail: { orderId, status }
+        });
+        window.dispatchEvent(event);
+      }
+      return data;
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
   }
 };

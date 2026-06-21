@@ -1,0 +1,132 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String   // In production, hashed password. For our mocks, we can support text/hashed.
+  name      String
+  role      String   // "corporate", "franchise", "store"
+  storeId   String?  // Relates if store manager
+  createdAt DateTime @default(now())
+}
+
+model Category {
+  id        String     @id
+  name      String
+  icon      String
+  menuItems MenuItem[]
+}
+
+model MenuItem {
+  id            String             @id
+  name          String
+  category      String
+  categoryRef   Category           @relation(fields: [category], references: [id])
+  isVeg         Boolean
+  description   String
+  image         String
+  basePrice     Float
+  prices        Json               // Stores sizes config e.g. { "regular": 290, "medium": 490 }
+  rating        Float              @default(4.5)
+  reviews       Int                @default(1)
+  isBestseller  Boolean            @default(false)
+  customizable  Boolean            @default(false)
+  availabilities StoreAvailability[]
+}
+
+model StoreAvailability {
+  id            String   @id @default(uuid())
+  storeId       String
+  menuItemId    String
+  menuItem      MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  available     Boolean  @default(true)
+  priceOverride Float?
+
+  @@unique([storeId, menuItemId])
+}
+
+model Banner {
+  id       Int    @id @default(autoincrement())
+  title    String
+  subtitle String
+  code     String?
+  bg       String
+  image    String
+}
+
+model Promotion {
+  code           String   @id
+  title          String
+  description    String
+  discountType   String   // "percentage" or "flat"
+  discountValue  Float
+  minOrderValue  Float
+  maxDiscount    Float
+  startDate      String
+  endDate        String
+  scopeType      String   // "national", "regional", "store"
+  scopeId        String?
+  isActive       Boolean  @default(true)
+}
+
+model Order {
+  id            String      @id // Custom ID e.g., "A1001"
+  storeId       String?
+  storeName     String?
+  driverName    String?
+  date          String      // Stored as string to preserve UI display format or timestamp
+  status        String      // "Placed", "Confirmed", "Preparing", "Ready", "OutForDelivery", "Delivered"
+  itemTotal     Float
+  deliveryFee   Float
+  taxes         Float
+  discount      Float
+  toPay         Float
+  paymentMethod String      @default("UPI")
+  address       Json
+  customer      Json        // { name, phone }
+  items         Json        // JSON list of ordered items (with sizes, crusts, toppings)
+}
+
+model PromoOverride {
+  id        String   @id @default(uuid())
+  storeId   String
+  promoCode String
+  enabled   Boolean  @default(true)
+
+  @@unique([storeId, promoCode])
+}
+
+model Franchise {
+  id        String   @id
+  name      String
+  district  String
+  ownerName String
+  email     String
+  phone     String
+  address   String
+  stores    Store[]
+}
+
+model Store {
+  id          String    @id
+  franchiseId String
+  franchise   Franchise @relation(fields: [franchiseId], references: [id], onDelete: Cascade)
+  name        String
+  city        String
+  address     String
+  lat         Float
+  lng         Float
+  status      String    // "Open", "Paused", "Closed"
+  managerName String
+  phone       String
+  createdAt   DateTime  @default(now())
+}
+
+
