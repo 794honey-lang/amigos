@@ -1,8 +1,37 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import multer from 'multer';
 import { PrismaClient } from '@prisma/client';
 import { redis } from './redis.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Multer — disk storage for menu item images
+// __dirname = backend-api/src/ (tsx runs source directly, no compile step)
+// ../uploads = backend-api/uploads/
+const UPLOADS_DIR = path.join(__dirname, '../uploads');
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, UPLOADS_DIR),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname) || '.jpg';
+    const safeName = `img_${Date.now()}${ext}`;
+    cb(null, safeName);
+  }
+});
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB max
+  fileFilter: (_req, file, cb) => {
+    if (!file.mimetype.startsWith('image/')) {
+      return cb(new Error('Only image files are allowed'));
+    }
+    cb(null, true);
+  }
+});
 
 dotenv.config();
 
@@ -16,9 +45,27 @@ app.use(cors({
   credentials: true
 }));
 
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '2mb' })); // JSON only — images now go through /api/upload-image
+
+// Serve uploaded images as static files
+// e.g. GET http://localhost:5050/uploads/img_1234567890.jpg
+app.use('/uploads', express.static(UPLOADS_DIR));
 
 console.log('=== Initializing Amigos API Services ===');
+
+// --- 0. IMAGE UPLOAD ENDPOINT ---
+// POST /api/upload-image  (multipart/form-data, field name: "image")
+// Returns: { success: true, url: "http://localhost:5050/uploads/img_xxx.jpg" }
+app.post('/api/upload-image', upload.single('image'), (req: any, res: any) => {
+  if (!req.file) {
+    return res.status(400).json({ success: false, error: 'No image file received.' });
+  }
+  const protocol = req.protocol;
+  const host = req.get('host'); // e.g. localhost:5050
+  const url = `${protocol}://${host}/uploads/${req.file.filename}`;
+  console.log(`Image uploaded: ${req.file.filename} → ${url}`);
+  res.json({ success: true, url });
+});
 
 // --- 1. AUTH / LOGIN ENDPOINTS ---
 app.post('/api/auth/login', async (req, res) => {
@@ -460,7 +507,7 @@ app.post('/api/orders', async (req, res) => {
       }
     }
     const newId = `A${nextNum}`;
-    const timeString = 'Today, ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const timeString = new Date().toISOString();
 
     const newOrder = await prisma.order.create({
       data: {

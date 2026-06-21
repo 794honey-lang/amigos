@@ -36,12 +36,20 @@ const STATUS_ITEMS = [
 ];
 
 export const StatusStepper = ({ currentStatus = 'Placed', orderDate = 'Today, 11:45 AM', className = '' }) => {
-  // If cancelled, show a cancelled banner/view instead of progress
   const isCancelled = currentStatus.toLowerCase() === 'cancelled';
   
   const currentIdx = STATUS_ITEMS.findIndex(
     item => item.key.toLowerCase() === currentStatus.toLowerCase()
   );
+
+  let displayDate = orderDate;
+  const parsedDate = new Date(orderDate);
+  if (!isNaN(parsedDate.getTime())) {
+    const now = new Date();
+    const isToday = parsedDate.toDateString() === now.toDateString();
+    const timeStr = parsedDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    displayDate = isToday ? `Today, ${timeStr}` : `${parsedDate.toLocaleDateString([], { month: 'short', day: 'numeric' })}, ${timeStr}`;
+  }
 
   return (
     <div className={`flex flex-col gap-6 ${className}`}>
@@ -95,7 +103,7 @@ export const StatusStepper = ({ currentStatus = 'Placed', orderDate = 'Today, 11
                   </h4>
                   {index === 0 && (
                     <span className="text-[10px] text-text-muted font-body font-medium">
-                      {orderDate}
+                      {displayDate}
                     </span>
                   )}
                   {isActive && index > 0 && (

@@ -30,6 +30,7 @@ export const Menu = () => {
   const [formPriceMedium, setFormPriceMedium] = useState('');
   const [formPriceLarge, setFormPriceLarge] = useState('');
   const [formIsBestseller, setFormIsBestseller] = useState(false);
+  const [imageUploading, setImageUploading] = useState(false); // upload-in-progress indicator
 
   const categories = [
     { value: 'all', label: 'All Categories' },
@@ -54,66 +55,58 @@ export const Menu = () => {
     setEditingItem(null);
   };
 
-  const handleFileChange = (e) => {
+  // Upload image file to backend — returns a permanent static URL
+  const handleFileChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-
     if (!file.type.startsWith('image/')) {
-      addToast('Please select an image file', 'error');
+      addToast('Please select an image file (JPG, PNG, WEBP)', 'error');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      addToast('Image must be under 5 MB', 'error');
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 400;
-        const MAX_HEIGHT = 400;
-        let width = img.width;
-        let height = img.height;
+    setImageUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
 
-        if (width > height) {
-          if (width > MAX_WIDTH) {
-            height *= MAX_WIDTH / width;
-            width = MAX_WIDTH;
-          }
-        } else {
-          if (height > MAX_HEIGHT) {
-            width *= MAX_HEIGHT / height;
-            height = MAX_HEIGHT;
-          }
-        }
+      const res = await fetch('http://localhost:5050/api/upload-image', {
+        method: 'POST',
+        body: formData // Do NOT set Content-Type — browser sets multipart boundary
+      });
+      const data = await res.json();
 
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
-
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
-        setFormImage(dataUrl);
-        addToast('Image uploaded and resized successfully!', 'success');
-      };
-      img.src = event.target.result;
-    };
-    reader.readAsDataURL(file);
+      if (data.success) {
+        setFormImage(data.url); // e.g. http://localhost:5050/uploads/img_1234567890.jpg
+        addToast('Image uploaded successfully!', 'success');
+      } else {
+        addToast(`Upload failed: ${data.error}`, 'error');
+      }
+    } catch (err) {
+      addToast('Could not reach upload server. Is the backend running?', 'error');
+    } finally {
+      setImageUploading(false);
+    }
   };
 
   const syncMenuToDisk = async (newCatalog) => {
     try {
-      const response = await fetch('/api/save-menu', {
+      const response = await fetch('http://localhost:5050/api/menu', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ menuItems: newCatalog })
       });
       const data = await response.json();
       if (data.success) {
-        addToast('Master menu synced across all apps successfully!', 'success');
+        addToast('Master menu synced to database successfully!', 'success');
       } else {
-        addToast('Synced local state, but file persistence failed.', 'warning');
+        addToast('Sync to database failed.', 'warning');
       }
     } catch (e) {
-      addToast('Synced local state, but failed to reach sync server.', 'warning');
+      addToast('Could not reach backend server. Is it running on port 5050?', 'warning');
     }
   };
 
@@ -480,24 +473,31 @@ export const Menu = () => {
               )}
               <div className="flex-1 space-y-2">
                 <div>
-                  <label className="block text-[9px] font-semibold text-text-secondary mb-1">Option A: Upload local image file</label>
+                  <label className="block text-[9px] font-semibold text-text-secondary mb-1">Upload image file (JPG / PNG / WEBP, max 5 MB)</label>
                   <input
                     type="file"
                     accept="image/*"
                     onChange={handleFileChange}
-                    className="w-full text-[10px] text-text-secondary file:mr-2 file:py-1 file:px-2.5 file:rounded-pill file:border-0 file:text-[9px] file:font-bold file:bg-brand file:text-white hover:file:bg-brand-accent cursor-pointer transition-all"
+                    disabled={imageUploading}
+                    className="w-full text-[10px] text-text-secondary file:mr-2 file:py-1 file:px-2.5 file:rounded-pill file:border-0 file:text-[9px] file:font-bold file:bg-brand file:text-white hover:file:bg-brand-accent cursor-pointer transition-all disabled:opacity-50"
                   />
+                  {imageUploading && (
+                    <p className="text-[9px] text-brand font-body mt-1 animate-pulse">⏳ Uploading image to server...</p>
+                  )}
+                  {formImage && !imageUploading && (
+                    <p className="text-[9px] text-success font-body mt-1 truncate">✓ {formImage}</p>
+                  )}
                 </div>
                 <div className="relative flex py-1 items-center">
                   <div className="flex-grow border-t border-stone-200"></div>
-                  <span className="flex-shrink mx-2 text-stone-400 text-[8px] font-bold uppercase">or</span>
+                  <span className="flex-shrink mx-2 text-stone-400 text-[8px] font-bold uppercase">or paste URL</span>
                   <div className="flex-grow border-t border-stone-200"></div>
                 </div>
                 <div>
-                  <label className="block text-[9px] font-semibold text-text-secondary mb-1">Option B: Image Web URL</label>
+                  <label className="block text-[9px] font-semibold text-text-secondary mb-1">Image Web URL</label>
                   <input
                     type="text"
-                    value={formImage && formImage.startsWith('data:') ? '' : formImage}
+                    value={formImage.startsWith('http://localhost') || formImage.startsWith('data:') ? '' : formImage}
                     onChange={(e) => setFormImage(e.target.value)}
                     placeholder="e.g. https://images.unsplash.com/..."
                     className="w-full px-2.5 py-1.5 border border-stone-300 rounded-input focus:outline-none focus:border-brand font-body text-[10px]"
@@ -678,24 +678,31 @@ export const Menu = () => {
                 )}
                 <div className="flex-1 space-y-2">
                   <div>
-                    <label className="block text-[9px] font-semibold text-text-secondary mb-1">Option A: Upload local image file</label>
+                    <label className="block text-[9px] font-semibold text-text-secondary mb-1">Upload image file (JPG / PNG / WEBP, max 5 MB)</label>
                     <input
                       type="file"
                       accept="image/*"
                       onChange={handleFileChange}
-                      className="w-full text-[10px] text-text-secondary file:mr-2 file:py-1 file:px-2.5 file:rounded-pill file:border-0 file:text-[9px] file:font-bold file:bg-brand file:text-white hover:file:bg-brand-accent cursor-pointer transition-all"
+                      disabled={imageUploading}
+                      className="w-full text-[10px] text-text-secondary file:mr-2 file:py-1 file:px-2.5 file:rounded-pill file:border-0 file:text-[9px] file:font-bold file:bg-brand file:text-white hover:file:bg-brand-accent cursor-pointer transition-all disabled:opacity-50"
                     />
+                    {imageUploading && (
+                      <p className="text-[9px] text-brand font-body mt-1 animate-pulse">⏳ Uploading image to server...</p>
+                    )}
+                    {formImage && !imageUploading && (
+                      <p className="text-[9px] text-success font-body mt-1 truncate">✓ {formImage}</p>
+                    )}
                   </div>
                   <div className="relative flex py-1 items-center">
                     <div className="flex-grow border-t border-stone-200"></div>
-                    <span className="flex-shrink mx-2 text-stone-400 text-[8px] font-bold uppercase">or</span>
+                    <span className="flex-shrink mx-2 text-stone-400 text-[8px] font-bold uppercase">or paste URL</span>
                     <div className="flex-grow border-t border-stone-200"></div>
                   </div>
                   <div>
-                    <label className="block text-[9px] font-semibold text-text-secondary mb-1">Option B: Image Web URL</label>
+                    <label className="block text-[9px] font-semibold text-text-secondary mb-1">Image Web URL</label>
                     <input
                       type="text"
-                      value={formImage && formImage.startsWith('data:') ? '' : formImage}
+                      value={formImage.startsWith('http://localhost') || formImage.startsWith('data:') ? '' : formImage}
                       onChange={(e) => setFormImage(e.target.value)}
                       placeholder="e.g. https://images.unsplash.com/..."
                       className="w-full px-2.5 py-1.5 border border-stone-300 rounded-input focus:outline-none focus:border-brand font-body text-[10px]"

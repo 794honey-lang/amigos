@@ -79,7 +79,7 @@ export const Cart = () => {
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-bg relative pb-28">
+    <div className="flex-1 flex flex-col bg-bg relative pb-36">
       {/* Header */}
       <header className="sticky top-0 z-30 bg-white border-b border-border px-4 py-3.5 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-1.5">
@@ -238,7 +238,7 @@ export const Cart = () => {
       </div>
 
       {/* Sticky Bottom Bar */}
-      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] bg-white border-t border-border px-5 py-3.5 z-40 shadow-2xl rounded-t-sheet flex items-center justify-between gap-4">
+      <div className="fixed bottom-16 left-1/2 -translate-x-1/2 w-full max-w-[480px] bg-white border-t border-border px-5 py-3.5 z-40 shadow-2xl rounded-t-sheet flex items-center justify-between gap-4">
         <div className="flex flex-col text-left pl-1">
           <span className="text-[10px] text-text-secondary font-medium font-body leading-none">
             To Pay

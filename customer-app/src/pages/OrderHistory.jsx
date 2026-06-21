@@ -7,12 +7,15 @@ import { useUiStore } from '@shared/store/uiStore';
 import { Card } from '@shared/components/ui/Card';
 import { Badge } from '@shared/components/ui/Badge';
 import { Button } from '@shared/components/ui/Button';
+import { formatDateTimeIST } from '@shared/utils/dateUtils';
 
 export const OrderHistory = () => {
   const navigate = useNavigate();
   const { orders, fetchOrders, loading } = useOrderStore();
   const { addItem, clearCart } = useCartStore();
   const { addToast } = useUiStore();
+
+  // formatDateTimeIST imported from shared/src/utils/dateUtils.js
 
   const [activeTab, setActiveTab] = useState('All'); // 'All' | 'Ongoing' | 'Completed' | 'Cancelled'
 
@@ -141,7 +144,7 @@ export const OrderHistory = () => {
                       Order #{order.id}
                     </h4>
                     <span className="text-[9px] text-text-muted font-body block">
-                      {order.date}
+                      {formatDateTimeIST(order.date)}
                     </span>
                   </div>
                   <Badge status={order.status} />

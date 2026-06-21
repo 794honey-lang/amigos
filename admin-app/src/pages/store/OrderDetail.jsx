@@ -4,6 +4,7 @@ import {
   Clock, MapPin, Phone, User, Shield, CheckCircle, 
   XCircle, Truck, ShoppingBag, ArrowRight 
 } from 'lucide-react';
+import { formatFullIST } from '@shared/utils/dateUtils';
 
 export const OrderDetail = ({ 
   order, 
@@ -51,7 +52,7 @@ export const OrderDetail = ({
           </div>
           <span className="text-[10px] font-body text-text-muted mt-0.5 flex items-center gap-1">
             <Clock className="w-3 h-3" />
-            <span>Placed: {new Date(order.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+            <span>Placed: {formatFullIST(order.date)}</span>
           </span>
         </div>
 

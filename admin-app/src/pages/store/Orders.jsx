@@ -6,6 +6,7 @@ import { AdminLayout } from '../../components/shared/AdminLayout';
 import { OrderDetail } from './OrderDetail';
 import { orderService } from '../../services/orderService';
 import { Clock, Phone, AlertCircle, ShoppingBag } from 'lucide-react';
+import { formatDateTimeIST, formatTimeIST } from '@shared/utils/dateUtils';
 
 export const Orders = () => {
   const { scope } = useAuthStore();
@@ -143,7 +144,7 @@ export const Orders = () => {
                       </span>
                       <span className="text-[9px] font-body text-text-muted flex items-center gap-1">
                         <Clock className="w-3.5 h-3.5" />
-                        <span>{new Date(order.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        <span>{formatDateTimeIST(order.date)}</span>
                       </span>
                     </div>
 
