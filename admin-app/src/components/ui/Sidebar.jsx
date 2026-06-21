@@ -55,7 +55,7 @@ export const Sidebar = () => {
         { to: '/hq/loyalty', label: 'Loyalty Rules', icon: Coins },
         { to: '/hq/feature-flags', label: 'Feature Flags', icon: ToggleLeft },
         { to: '/hq/compliance', label: 'Compliance Policies', icon: ShieldAlert },
-        { to: '/hq/reporting', label: 'Network Reports', icon: BarChart3 },
+        { to: '/hq/reporting', label: 'Reports', icon: BarChart3 },
       ];
     }
 

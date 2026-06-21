@@ -7,7 +7,17 @@ import { mockFranchises } from '@shared/mocks/mockFranchises';
 export const useStoreRegistry = create((set, get) => ({
   stores: [...mockStores],
   storeHours: [...mockStoreHours],
-  deliveryZones: [...mockDeliveryZones],
+  deliveryZones: (() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const stored = window.localStorage.getItem('amigos_delivery_zones');
+        return stored ? JSON.parse(stored) : [...mockDeliveryZones];
+      }
+      return [...mockDeliveryZones];
+    } catch (e) {
+      return [...mockDeliveryZones];
+    }
+  })(),
   franchises: [...mockFranchises],
 
   addFranchise: (newFranchise) => {
@@ -164,22 +174,39 @@ export const useStoreRegistry = create((set, get) => ({
     });
   },
 
-  updateDeliveryZone: (storeId, mode, radiusKm, polygonCoordinates) => {
+  updateDeliveryZone: (storeId, mode, radiusKm, polygonCoordinates, deliveryCharge, minOrderValue, extraKmCharge, enableFreeDelivery, freeDeliveryMinOrder) => {
     const { deliveryZones } = get();
     const existingIndex = deliveryZones.findIndex(z => z.storeId === storeId);
 
+    const updatedData = {
+      mode,
+      radiusKm,
+      polygonCoordinates: polygonCoordinates || [],
+      deliveryCharge: deliveryCharge !== undefined ? Number(deliveryCharge) : 30,
+      minOrderValue: minOrderValue !== undefined ? Number(minOrderValue) : 200,
+      extraKmCharge: extraKmCharge !== undefined ? Number(extraKmCharge) : 10,
+      enableFreeDelivery: enableFreeDelivery !== undefined ? Boolean(enableFreeDelivery) : false,
+      freeDeliveryMinOrder: freeDeliveryMinOrder !== undefined ? Number(freeDeliveryMinOrder) : 500
+    };
+
+    let newZones;
     if (existingIndex > -1) {
-      set({
-        deliveryZones: deliveryZones.map(z => 
-          z.storeId === storeId 
-            ? { ...z, mode, radiusKm, polygonCoordinates: polygonCoordinates || z.polygonCoordinates } 
-            : z
-        )
-      });
+      newZones = deliveryZones.map(z => 
+        z.storeId === storeId 
+          ? { ...z, ...updatedData } 
+          : z
+      );
     } else {
-      set({
-        deliveryZones: [...deliveryZones, { storeId, mode, radiusKm, polygonCoordinates: polygonCoordinates || [] }]
-      });
+      newZones = [...deliveryZones, { storeId, ...updatedData }];
+    }
+
+    set({ deliveryZones: newZones });
+    try {
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem('amigos_delivery_zones', JSON.stringify(newZones));
+      }
+    } catch (e) {
+      console.error(e);
     }
   }
 }));

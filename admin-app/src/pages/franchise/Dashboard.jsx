@@ -30,6 +30,7 @@ export const Dashboard = () => {
     totalCount: 0
   });
   const [alerts, setAlerts] = useState([]);
+  const [activeKpi, setActiveKpi] = useState(null);
 
   useEffect(() => {
     // 1. Filter stores under this franchise
@@ -111,20 +112,73 @@ export const Dashboard = () => {
             value={`₹${franchiseKPIs.revenue}`} 
             icon={IndianRupee} 
             trend={{ type: 'up', value: '+14.2%', label: 'vs last week' }}
+            onClick={() => setActiveKpi(activeKpi === 'revenue' ? null : 'revenue')}
+            active={activeKpi === 'revenue'}
           />
           <KpiCard 
             title="Franchise Orders" 
             value={franchiseKPIs.orderCount} 
             icon={ShoppingBag} 
             trend={{ type: 'up', value: '+6.8%', label: 'vs last week' }}
+            onClick={() => setActiveKpi(activeKpi === 'orders' ? null : 'orders')}
+            active={activeKpi === 'orders'}
           />
           <KpiCard 
             title="Outlet Coverage" 
             value={`${franchiseKPIs.activeCount} / ${franchiseKPIs.totalCount} Active`} 
             icon={Store} 
             description="Stores currently online"
+            onClick={() => setActiveKpi(activeKpi === 'coverage' ? null : 'coverage')}
+            active={activeKpi === 'coverage'}
           />
         </div>
+
+        {activeKpi && (
+          <div className="bg-white border border-border rounded-card p-5 shadow-sm space-y-4 animate-fadeIn">
+            <div className="flex justify-between items-center border-b border-border pb-2.5">
+              <h3 className="font-heading font-extrabold text-xs text-text-primary uppercase tracking-wider flex items-center gap-2">
+                <span>Store Performance Breakdown</span>
+                <span className="text-[10px] font-heading font-semibold text-amber-700 bg-amber-50 border border-gold/15 px-2.5 py-0.5 rounded-pill lowercase">
+                  {activeKpi === 'revenue' ? 'by revenue' : activeKpi === 'orders' ? 'by order count' : 'by operating status'}
+                </span>
+              </h3>
+              <button
+                onClick={() => navigate('/franchise/reporting', { state: { kpi: activeKpi } })}
+                className="text-[10px] font-heading font-bold text-brand hover:underline flex items-center gap-0.5 cursor-pointer"
+              >
+                <span>More Details</span>
+                <ArrowRight className="w-3 h-3" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {stores.map(store => {
+                const storeOrders = mockOrders.filter(o => o.storeId === store.id);
+                const storeRevenue = storeOrders.filter(o => o.status === 'Delivered').reduce((sum, o) => sum + o.toPay, 0);
+
+                return (
+                  <div key={store.id} className="bg-stone-100 border border-stone-200 p-4 rounded-card flex flex-col justify-between">
+                    <div>
+                      <span className="text-[9px] font-heading font-extrabold text-text-muted uppercase block">{store.name}</span>
+                      {activeKpi === 'revenue' && (
+                        <h4 className="text-base font-heading font-extrabold text-text-primary mt-1">₹{storeRevenue}</h4>
+                      )}
+                      {activeKpi === 'orders' && (
+                        <h4 className="text-base font-heading font-extrabold text-text-primary mt-1">{storeOrders.length} orders</h4>
+                      )}
+                      {activeKpi === 'coverage' && (
+                        <h4 className={`text-base font-heading font-extrabold mt-1 ${store.status === 'Open' ? 'text-success' : store.status === 'Paused' ? 'text-gold' : 'text-danger'}`}>
+                          {store.status}
+                        </h4>
+                      )}
+                    </div>
+                    <span className="text-[9px] text-text-secondary font-body mt-2 block">{store.city} network node</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Operational Alerts Section */}
         {alerts.length > 0 && (

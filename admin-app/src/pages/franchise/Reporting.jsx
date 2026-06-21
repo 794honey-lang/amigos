@@ -3,6 +3,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useStoreRegistry } from '../../store/storeRegistry';
 import { AdminLayout } from '../../components/shared/AdminLayout';
 import { KpiCard } from '../../components/ui/KpiCard';
+import { MultiSelect } from '../../components/ui/MultiSelect';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, 
   Legend, ResponsiveContainer, LineChart, Line 
@@ -19,14 +20,36 @@ export const Reporting = () => {
   const franchiseStores = allStores.filter(s => s.franchiseId === activeFranchiseId);
 
   // State
-  const [selectedStore, setSelectedStore] = useState('all');
+  const [selectedStores, setSelectedStores] = useState(['all']);
   const [dateRange, setDateRange] = useState('7days');
+  const [startDate, setStartDate] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+  });
+  const [endDate, setEndDate] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  });
+
+  // Scale factors based on date range mock simulation
+  let scale = 1.0;
+  if (dateRange === '7days') scale = 0.25;
+  else if (dateRange === '30days') scale = 1.0;
+  else if (dateRange === 'thismonth') scale = 0.8;
+  else if (dateRange === 'custom') {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const diffTime = end - start;
+    const diffDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1);
+    scale = diffDays / 30.0;
+  }
 
   // Dynamic chart data scoped to franchise stores
   const storeComparisonData = franchiseStores.map(store => {
     // Generate deterministic mock sales based on store ID
     const numId = parseInt(store.id.replace('store_', ''), 10) || 1;
-    const sales = (numId % 5) * 20000 + 50000;
+    const baseSales = (numId % 5) * 20000 + 50000;
+    const sales = Math.round(baseSales * scale);
     const orders = Math.floor(sales / 520);
     return {
       id: store.id,
@@ -36,9 +59,9 @@ export const Reporting = () => {
     };
   });
 
-  const filteredComparisonData = selectedStore === 'all'
+  const filteredComparisonData = selectedStores.includes('all')
     ? storeComparisonData
-    : storeComparisonData.filter(d => d.id === selectedStore);
+    : storeComparisonData.filter(d => selectedStores.includes(d.id));
 
   const totalRevenue = filteredComparisonData.reduce((sum, d) => sum + d.sales, 0);
 
@@ -61,7 +84,8 @@ export const Reporting = () => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `franchise-report-${dateRange}.csv`);
+    const rangeName = dateRange === 'custom' ? `${startDate}-to-${endDate}` : dateRange;
+    link.setAttribute("download", `franchise-report-${rangeName}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -105,22 +129,39 @@ export const Reporting = () => {
               <option value="7days">Last 7 Days</option>
               <option value="30days">Last 30 Days</option>
               <option value="thismonth">This Month</option>
+              <option value="custom">Custom Date Range</option>
             </select>
           </div>
+
+          {dateRange === 'custom' && (
+            <div className="flex items-center gap-2 text-xs font-heading font-bold text-text-secondary w-full md:w-auto animate-fadeIn">
+              <span>From:</span>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="px-2 py-1 border border-stone-300 rounded-input focus:outline-none focus:border-brand bg-white font-semibold"
+              />
+              <span>To:</span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="px-2 py-1 border border-stone-300 rounded-input focus:outline-none focus:border-brand bg-white font-semibold"
+              />
+            </div>
+          )}
 
           <div className="flex items-center gap-2 text-xs font-heading font-bold text-text-secondary w-full md:w-auto">
             <Store className="w-4.5 h-4.5 text-brand shrink-0" />
             <span>Filter Store:</span>
-            <select
-              value={selectedStore}
-              onChange={(e) => setSelectedStore(e.target.value)}
-              className="px-3 py-1.5 border border-stone-300 rounded-input focus:outline-none focus:border-brand bg-white font-semibold"
-            >
-              <option value="all">All Franchise Stores</option>
-              {franchiseStores.map(store => (
-                <option key={store.id} value={store.id}>{store.name}</option>
-              ))}
-            </select>
+            <MultiSelect
+              label="Store"
+              options={franchiseStores}
+              selectedValues={selectedStores}
+              onChange={setSelectedStores}
+              placeholder="Select Stores..."
+            />
           </div>
         </div>
 
@@ -128,25 +169,25 @@ export const Reporting = () => {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <KpiCard 
             title="Total Revenue" 
-            value="₹3,20,300" 
+            value={`₹${totalRevenue.toLocaleString('en-IN')}`}
             icon={IndianRupee} 
             description="Gross sales across branches"
           />
           <KpiCard 
             title="Food Costs (Est. 30%)" 
-            value="₹96,090" 
+            value={`₹${Math.round(totalRevenue * 0.3).toLocaleString('en-IN')}`}
             icon={TrendingDown} 
             description="Ingredients & prep supplies"
           />
           <KpiCard 
             title="Labor Costs (Est. 20%)" 
-            value="₹64,060" 
+            value={`₹${Math.round(totalRevenue * 0.2).toLocaleString('en-IN')}`}
             icon={TrendingDown} 
             description="Staff wages & payouts"
           />
           <KpiCard 
             title="Net Margin (Est. 50%)" 
-            value="₹1,60,150" 
+            value={`₹${Math.round(totalRevenue * 0.5).toLocaleString('en-IN')}`}
             icon={TrendingUp} 
             trend={{ type: 'up', value: '50%', label: 'Gross Margins' }}
           />

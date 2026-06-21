@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, MapPin, CreditCard, Wallet, Coins, ChevronRight } from 'lucide-react';
+import { ChevronLeft, MapPin, CreditCard, Wallet, Coins, ChevronRight, AlertTriangle } from 'lucide-react';
 import { useCartStore } from '@shared/store/cartStore';
 import { useAuthStore } from '@shared/store/authStore';
 import { useOrderStore } from '@shared/store/orderStore';
@@ -12,7 +12,11 @@ import { Button } from '@shared/components/ui/Button';
 export const Checkout = () => {
   const navigate = useNavigate();
   const { user } = useAuthStore();
-  const { items, deliveryType, setDeliveryType, toPay, deliveryFee, itemTotal, taxes, discount, clearCart } = useCartStore();
+  const { 
+    items, deliveryType, setDeliveryType, toPay, deliveryFee, itemTotal, taxes, discount, clearCart,
+    setDeliveryAddress, isOutOfDeliveryZone, minOrderViolation, distanceKm,
+    enableFreeDelivery, freeDeliveryMinOrder
+  } = useCartStore();
   const { placeOrder, loading } = useOrderStore();
   const { addToast } = useUiStore();
 
@@ -20,6 +24,7 @@ export const Checkout = () => {
   const [paymentMethod, setPaymentMethod] = useState('UPI');
   const [selectedAddressIndex, setSelectedAddressIndex] = useState(0);
   const [addressSheetOpen, setAddressSheetOpen] = useState(false);
+  const [minOrderThreshold, setMinOrderThreshold] = useState(200);
 
   const selectedAddress = user?.addresses?.[selectedAddressIndex] || {
     label: 'Guest Location',
@@ -27,6 +32,29 @@ export const Checkout = () => {
     city: '',
     pincode: ''
   };
+
+  // Sync selected address with the cart store to calculate dynamic delivery fee
+  useEffect(() => {
+    if (deliveryType === 'delivery') {
+      setDeliveryAddress(selectedAddress);
+    } else {
+      setDeliveryAddress(null);
+    }
+  }, [selectedAddress, deliveryType]);
+
+  // Load active store's minimum order threshold dynamically
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('amigos_delivery_zones');
+      if (stored) {
+        const zones = JSON.parse(stored);
+        const activeZone = zones.find(z => z.storeId === 'store_001');
+        if (activeZone && activeZone.minOrderValue !== undefined) {
+          setMinOrderThreshold(activeZone.minOrderValue);
+        }
+      }
+    } catch (e) {}
+  }, []);
 
   const handlePay = async () => {
     if (items.length === 0) {
@@ -134,6 +162,22 @@ export const Checkout = () => {
                 </p>
               </div>
             </Card>
+
+            {enableFreeDelivery && (
+              itemTotal >= freeDeliveryMinOrder ? (
+                <div className="bg-green-50 border border-green-200 rounded-card p-3 flex items-center gap-2 text-green-800 animate-fadeIn">
+                  <span className="text-base">🎉</span>
+                  <span className="font-heading font-bold text-xs">You have unlocked Free Delivery!</span>
+                </div>
+              ) : (
+                <div className="bg-amber-50 border border-amber-200 rounded-card p-3 flex items-center gap-2 text-amber-800 animate-fadeIn">
+                  <span className="text-base">💡</span>
+                  <span className="font-heading font-bold text-xs">
+                    Add items worth <span className="underline font-extrabold">₹{freeDeliveryMinOrder - itemTotal}</span> more to get <span className="text-brand font-extrabold">FREE</span> delivery!
+                  </span>
+                </div>
+              )
+            )}
           </div>
         )}
 
@@ -223,13 +267,34 @@ export const Checkout = () => {
       </div>
 
       {/* Sticky Pay Footer */}
-      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] bg-white border-t border-border px-5 py-4 z-40 shadow-2xl rounded-t-sheet">
+      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] bg-white border-t border-border px-5 py-4 z-40 shadow-2xl rounded-t-sheet space-y-2.5">
+        {deliveryType === 'delivery' && (minOrderViolation || isOutOfDeliveryZone) && (
+          <div className="bg-red-50 border border-red-200 rounded-card p-3 flex items-start gap-2 text-danger animate-fadeIn">
+            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+            <div className="text-[10px] font-body text-left leading-normal">
+              {minOrderViolation && (
+                <p>⚠️ Min. order value of ₹{minOrderThreshold} required for delivery. (Cart: ₹{itemTotal})</p>
+              )}
+              {isOutOfDeliveryZone && (
+                <p>⚠️ Out of delivery zone. Distance is {distanceKm ? distanceKm.toFixed(1) : 'N/A'} km.</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {deliveryType === 'delivery' && !minOrderViolation && !isOutOfDeliveryZone && distanceKm > 0 && (
+          <div className="bg-stone-50 border border-stone-200 rounded-card px-3 py-2 flex items-center justify-between text-[10px] font-heading font-bold text-text-secondary">
+            <span>Rider Distance:</span>
+            <span className="text-brand">{distanceKm.toFixed(1)} km</span>
+          </div>
+        )}
+
         <Button
           onClick={handlePay}
           variant="primary"
           fullWidth
           size="lg"
-          disabled={loading}
+          disabled={loading || (deliveryType === 'delivery' && (minOrderViolation || isOutOfDeliveryZone))}
           className="py-3.5 shadow-md font-heading font-semibold text-sm"
         >
           {loading ? 'Processing...' : `Pay ₹${toPay}`}

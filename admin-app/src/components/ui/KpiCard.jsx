@@ -1,9 +1,16 @@
 import React from 'react';
 import { ArrowUpRight, ArrowDownRight } from 'lucide-react';
 
-export const KpiCard = ({ title, value, icon: Icon, trend, description }) => {
+export const KpiCard = ({ title, value, icon: Icon, trend, description, onClick, active }) => {
   return (
-    <div className="bg-white border border-border p-5 rounded-card shadow-sm flex items-start justify-between">
+    <div 
+      onClick={onClick}
+      className={`border p-5 rounded-card shadow-sm flex items-start justify-between transition-all select-none ${
+        onClick ? 'cursor-pointer hover:shadow-md hover:border-brand/40' : 'border-border'
+      } ${
+        active ? 'border-brand bg-red-50 ring-1 ring-brand' : 'bg-white border-border'
+      }`}
+    >
       <div className="space-y-2">
         <span className="text-xs font-heading font-medium text-text-secondary uppercase tracking-wider block">
           {title}
@@ -29,7 +36,11 @@ export const KpiCard = ({ title, value, icon: Icon, trend, description }) => {
         )}
       </div>
       {Icon && (
-        <div className="w-10 h-10 rounded-full bg-surface-sunken flex items-center justify-center text-brand border border-border shadow-inner">
+        <div className={`w-10 h-10 rounded-full flex items-center justify-center border shadow-inner transition-colors ${
+          active 
+            ? 'bg-brand text-white border-brand/20' 
+            : 'bg-surface-sunken text-brand border-border'
+        }`}>
           <Icon className="w-5 h-5" />
         </div>
       )}

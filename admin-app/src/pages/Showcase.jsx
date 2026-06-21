@@ -21,6 +21,7 @@ export const Showcase = () => {
 
   const [selectedFranchiseId, setSelectedFranchiseId] = useState(null);
   const [storePage, setStorePage] = useState(1);
+  const [activeKpi, setActiveKpi] = useState(null);
 
   const columns = [
     { key: 'id', header: 'Franchise ID', sortable: true },
@@ -80,26 +81,136 @@ export const Showcase = () => {
             value="₹1,24,500" 
             icon={IndianRupee} 
             trend={{ type: 'up', value: '+12.4%', label: 'vs yesterday' }}
+            onClick={() => setActiveKpi(activeKpi === 'revenue' ? null : 'revenue')}
+            active={activeKpi === 'revenue'}
           />
           <KpiCard 
             title="Total Orders" 
             value="342" 
             icon={ShoppingBag} 
             trend={{ type: 'up', value: '+8.2%', label: 'vs last week' }}
+            onClick={() => setActiveKpi(activeKpi === 'orders' ? null : 'orders')}
+            active={activeKpi === 'orders'}
           />
           <KpiCard 
             title="Active Outlets" 
             value="8 / 9" 
             icon={Store} 
             trend={{ type: 'down', value: '-1', label: 'Ahmedabad offline' }}
+            onClick={() => setActiveKpi(activeKpi === 'outlets' ? null : 'outlets')}
+            active={activeKpi === 'outlets'}
           />
           <KpiCard 
             title="Avg Prep Time" 
             value="18 mins" 
             icon={Clock} 
             description="Operational Target: 15m"
+            onClick={() => setActiveKpi(activeKpi === 'preptime' ? null : 'preptime')}
+            active={activeKpi === 'preptime'}
           />
         </div>
+
+        {activeKpi && (
+          <div className="bg-white border border-border rounded-card p-5 shadow-sm space-y-4 animate-fadeIn">
+            <div className="flex justify-between items-center border-b border-border pb-2.5">
+              <h3 className="font-heading font-extrabold text-xs text-text-primary uppercase tracking-wider flex items-center gap-2">
+                <span>Franchise Network Breakdown</span>
+                <span className="text-[10px] font-heading font-semibold text-brand bg-brand/5 border border-brand/10 px-2.5 py-0.5 rounded-pill lowercase">
+                  {activeKpi === 'revenue' ? 'by revenue' : activeKpi === 'orders' ? 'by order count' : activeKpi === 'outlets' ? 'by active outlets' : 'by prep speed'}
+                </span>
+              </h3>
+              <button
+                onClick={() => navigate('/hq/reporting', { state: { kpi: activeKpi } })}
+                className="text-[10px] font-heading font-bold text-brand hover:underline flex items-center gap-0.5 cursor-pointer"
+              >
+                <span>More Details</span>
+                <ArrowRight className="w-3 h-3" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {activeKpi === 'revenue' && (
+                <>
+                  <div className="bg-stone-100 border border-stone-200 p-4 rounded-card">
+                    <span className="text-[9px] font-heading font-extrabold text-text-muted uppercase">North Franchise Group</span>
+                    <h4 className="text-base font-heading font-extrabold text-text-primary mt-1">₹65,200</h4>
+                    <p className="text-[9px] text-text-secondary font-body mt-1">52.3% system share · Jammu & CP Delhi</p>
+                  </div>
+                  <div className="bg-stone-100 border border-stone-200 p-4 rounded-card">
+                    <span className="text-[9px] font-heading font-extrabold text-text-muted uppercase">West Coast Amigos</span>
+                    <h4 className="text-base font-heading font-extrabold text-text-primary mt-1">₹38,300</h4>
+                    <p className="text-[9px] text-text-secondary font-body mt-1">30.8% system share · Srinagar & Pune</p>
+                  </div>
+                  <div className="bg-stone-100 border border-stone-200 p-4 rounded-card">
+                    <span className="text-[9px] font-heading font-extrabold text-text-muted uppercase">South India Pizzas</span>
+                    <h4 className="text-base font-heading font-extrabold text-text-primary mt-1">₹21,000</h4>
+                    <p className="text-[9px] text-text-secondary font-body mt-1">16.9% system share · Bangalore & Chennai</p>
+                  </div>
+                </>
+              )}
+
+              {activeKpi === 'orders' && (
+                <>
+                  <div className="bg-stone-100 border border-stone-200 p-4 rounded-card">
+                    <span className="text-[9px] font-heading font-extrabold text-text-muted uppercase">North Franchise Group</span>
+                    <h4 className="text-base font-heading font-extrabold text-text-primary mt-1">180 orders</h4>
+                    <p className="text-[9px] text-text-secondary font-body mt-1">Avg Ticket Value: ₹362</p>
+                  </div>
+                  <div className="bg-stone-100 border border-stone-200 p-4 rounded-card">
+                    <span className="text-[9px] font-heading font-extrabold text-text-muted uppercase">West Coast Amigos</span>
+                    <h4 className="text-base font-heading font-extrabold text-text-primary mt-1">105 orders</h4>
+                    <p className="text-[9px] text-text-secondary font-body mt-1">Avg Ticket Value: ₹365</p>
+                  </div>
+                  <div className="bg-stone-100 border border-stone-200 p-4 rounded-card">
+                    <span className="text-[9px] font-heading font-extrabold text-text-muted uppercase">South India Pizzas</span>
+                    <h4 className="text-base font-heading font-extrabold text-text-primary mt-1">57 orders</h4>
+                    <p className="text-[9px] text-text-secondary font-body mt-1">Avg Ticket Value: ₹368</p>
+                  </div>
+                </>
+              )}
+
+              {activeKpi === 'outlets' && (
+                <>
+                  <div className="bg-stone-100 border border-stone-200 p-4 rounded-card">
+                    <span className="text-[9px] font-heading font-extrabold text-text-muted uppercase">North Franchise Group</span>
+                    <h4 className="text-base font-heading font-extrabold text-success mt-1">4 / 4 Online</h4>
+                    <p className="text-[9px] text-text-secondary font-body mt-1">Jammu, Delhi, Chandigarh healthy</p>
+                  </div>
+                  <div className="bg-stone-100 border border-stone-200 p-4 rounded-card">
+                    <span className="text-[9px] font-heading font-extrabold text-text-muted uppercase">West Coast Amigos</span>
+                    <h4 className="text-base font-heading font-extrabold text-gold mt-1">2 / 3 Online</h4>
+                    <p className="text-[9px] text-text-secondary font-body mt-1">Vastrapur Ahmedabad offline</p>
+                  </div>
+                  <div className="bg-stone-100 border border-stone-200 p-4 rounded-card">
+                    <span className="text-[9px] font-heading font-extrabold text-text-muted uppercase">South India Pizzas</span>
+                    <h4 className="text-base font-heading font-extrabold text-success mt-1">2 / 2 Online</h4>
+                    <p className="text-[9px] text-text-secondary font-body mt-1">Bangalore & Chennai healthy</p>
+                  </div>
+                </>
+              )}
+
+              {activeKpi === 'preptime' && (
+                <>
+                  <div className="bg-stone-100 border border-stone-200 p-4 rounded-card">
+                    <span className="text-[9px] font-heading font-extrabold text-text-muted uppercase">North Franchise Group</span>
+                    <h4 className="text-base font-heading font-extrabold text-success mt-1">16 mins</h4>
+                    <p className="text-[9px] text-text-secondary font-body mt-1">Within target boundary range</p>
+                  </div>
+                  <div className="bg-stone-100 border border-stone-200 p-4 rounded-card">
+                    <span className="text-[9px] font-heading font-extrabold text-text-muted uppercase">West Coast Amigos</span>
+                    <h4 className="text-base font-heading font-extrabold text-danger mt-1">21 mins</h4>
+                    <p className="text-[9px] text-text-secondary font-body mt-1">Exceeding operational target threshold</p>
+                  </div>
+                  <div className="bg-stone-100 border border-stone-200 p-4 rounded-card">
+                    <span className="text-[9px] font-heading font-extrabold text-text-muted uppercase">South India Pizzas</span>
+                    <h4 className="text-base font-heading font-extrabold text-success mt-1">17 mins</h4>
+                    <p className="text-[9px] text-text-secondary font-body mt-1">Within target boundary range</p>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
 
         <div className="space-y-3">
           <div className="flex items-center justify-between">

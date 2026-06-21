@@ -27,6 +27,7 @@ import { Overrides as FranchiseOverrides } from './pages/franchise/Overrides';
 import { Franchises } from './pages/hq/Franchises';
 import { Menu } from './pages/hq/Menu';
 import { Promotions } from './pages/hq/Promotions';
+import { Reporting as HQReporting } from './pages/hq/Reporting';
 
 import { AdminLayout } from './components/shared/AdminLayout';
 import { Info } from 'lucide-react';
@@ -133,7 +134,7 @@ export const App = () => {
             path="/hq/reporting" 
             element={
               <ScopedRoute allowedRoles={['corporate']}>
-                <ComingSoon title="Network Reports" />
+                <HQReporting />
               </ScopedRoute>
             } 
           />
