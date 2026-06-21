@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './store/authStore';
+import { useStoreRegistry } from './store/storeRegistry';
 import { Login } from './pages/Login';
 import { Showcase } from './pages/Showcase';
 import { ScopedRoute } from './components/shared/ScopedRoute';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
 
 // Store Console Pages
 import { Dashboard as StoreDashboard } from './pages/store/Dashboard';
@@ -51,6 +53,11 @@ const ComingSoon = ({ title }) => (
 
 export const App = () => {
   const { isAuthenticated, role } = useAuthStore();
+  const fetchRegistry = useStoreRegistry(state => state.fetchRegistry);
+
+  useEffect(() => {
+    fetchRegistry();
+  }, [fetchRegistry]);
 
   return (
     <QueryClientProvider client={queryClient}>
