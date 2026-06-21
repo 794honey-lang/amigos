@@ -9,9 +9,6 @@ echo "=== Starting Amigos Monorepo Build for GitHub Pages ==="
 echo "Building Customer App..."
 npm run customer:build
 
-echo "Building Restaurant App..."
-npm run restaurant:build
-
 echo "Building Admin Console..."
 npm run admin:build
 
@@ -33,10 +30,6 @@ fi
 echo "Copying Customer App build..."
 mkdir -p dist/customer
 cp -r customer-app/dist/* dist/customer/
-
-echo "Copying Restaurant App build..."
-mkdir -p dist/restaurant
-cp -r restaurant-app/dist/* dist/restaurant/
 
 echo "Copying Admin Console build..."
 mkdir -p dist/admin
