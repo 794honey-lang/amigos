@@ -45,8 +45,8 @@ export const Login = () => {
 
   return (
     <div className="min-h-screen bg-bg flex items-center justify-center p-4">
-      <div className="w-full max-w-4xl bg-white border border-border rounded-card shadow-xl overflow-hidden flex flex-col md:flex-row">
-        <div className="md:w-1/2 bg-dark text-white p-8 flex flex-col justify-between relative overflow-hidden">
+      <div className="w-full max-w-md md:max-w-4xl bg-white border border-border rounded-card shadow-xl overflow-hidden flex flex-col md:flex-row">
+        <div className="hidden md:flex md:w-1/2 bg-dark text-white p-8 flex-col justify-between relative overflow-hidden">
           <div className="absolute -top-24 -left-24 w-64 h-64 bg-brand/30 rounded-full blur-3xl pointer-events-none" />
           <div className="absolute -bottom-24 -right-24 w-64 h-64 bg-gold/25 rounded-full blur-3xl pointer-events-none" />
 
@@ -71,7 +71,7 @@ export const Login = () => {
           </div>
         </div>
 
-        <div className="md:w-1/2 p-8 flex flex-col justify-center">
+        <div className="w-full md:w-1/2 p-6 md:p-8 flex flex-col justify-center">
           <div className="mb-6 flex flex-col items-center md:items-start">
             <Logo size="sm" className="mb-4 self-center md:self-start" />
             <h3 className="font-heading font-bold text-xl text-text-primary">Welcome Back</h3>
