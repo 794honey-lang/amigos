@@ -27,6 +27,7 @@ import { Overrides as FranchiseOverrides } from './pages/franchise/Overrides';
 import { Franchises } from './pages/hq/Franchises';
 import { Menu } from './pages/hq/Menu';
 import { Promotions } from './pages/hq/Promotions';
+import { Banners } from './pages/hq/Banners';
 import { Reporting as HQReporting } from './pages/hq/Reporting';
 
 import { AdminLayout } from './components/shared/AdminLayout';
@@ -94,7 +95,7 @@ export const App = () => {
             path="/hq/banners" 
             element={
               <ScopedRoute allowedRoles={['corporate']}>
-                <ComingSoon title="App Banners" />
+                <Banners />
               </ScopedRoute>
             } 
           />
