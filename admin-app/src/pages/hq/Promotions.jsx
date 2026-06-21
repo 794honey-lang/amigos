@@ -37,6 +37,27 @@ export const Promotions = () => {
   const [startDate, setStartDate] = useState('2026-06-21');
   const [endDate, setEndDate] = useState('2026-08-31');
 
+  // Targeting States
+  const [initialScopeAll, setInitialScopeAll] = useState(true);
+  const [selectedStores, setSelectedStores] = useState({});
+
+  useEffect(() => {
+    if (stores && stores.length > 0) {
+      const initial = {};
+      stores.forEach(s => {
+        initial[s.id] = true;
+      });
+      setSelectedStores(initial);
+    }
+  }, [stores]);
+
+  const handleToggleStoreSelection = (storeId) => {
+    setSelectedStores(prev => ({
+      ...prev,
+      [storeId]: !prev[storeId]
+    }));
+  };
+
   const loadData = async () => {
     setIsLoading(true);
     try {
@@ -172,6 +193,19 @@ export const Promotions = () => {
 
     const res = await promotionService.createPromotion(newPromo);
     if (res.success) {
+      // Configure overrides for specific store targeting
+      if (!initialScopeAll) {
+        const storeIdsToDisable = stores.filter(s => !selectedStores[s.id]).map(s => s.id);
+        const storeIdsToEnable = stores.filter(s => selectedStores[s.id]).map(s => s.id);
+        
+        if (storeIdsToDisable.length > 0) {
+          await promotionService.bulkUpdateStorePromoOverrides(storeIdsToDisable, newPromo.code, false);
+        }
+        if (storeIdsToEnable.length > 0) {
+          await promotionService.bulkUpdateStorePromoOverrides(storeIdsToEnable, newPromo.code, true);
+        }
+      }
+
       addToast(`National promotion ${newPromo.code} created successfully!`, 'success');
       
       // Reset Form
@@ -181,13 +215,19 @@ export const Promotions = () => {
       setPromoVal(10);
       setMinOrder(299);
       setMaxDiscount(100);
+      setInitialScopeAll(true);
+      
+      const resetSelection = {};
+      stores.forEach(s => {
+        resetSelection[s.id] = true;
+      });
+      setSelectedStores(resetSelection);
       
       loadData(); // Reload list
     }
   };
 
   const nationalPromos = promotions.filter(p => p.scopeType === 'national');
-  const regionalPromos = promotions.filter(p => p.scopeType === 'regional');
 
   return (
     <AdminLayout>
@@ -388,44 +428,6 @@ export const Promotions = () => {
               )}
             </div>
 
-            {/* View Regional Promotions */}
-            <div className="bg-white border border-border rounded-card p-5 shadow-sm space-y-4">
-              <h3 className="font-heading font-extrabold text-sm text-text-primary uppercase tracking-wide border-b border-border pb-2.5 flex items-center gap-1.5">
-                <Tag className="w-4 h-4 text-gold" />
-                <span>Regional Franchise Coupons (Read-Only)</span>
-              </h3>
-
-              <div className="space-y-3 text-xs font-body">
-                {regionalPromos.length > 0 ? (
-                  regionalPromos.map(promo => {
-                    const franchiseName = franchises.find(f => f.id === promo.scopeId)?.name || 'Unknown Franchise';
-                    return (
-                      <div key={promo.code} className="border border-border rounded-card p-3.5 flex justify-between items-start gap-4 bg-stone-50/30">
-                        <div>
-                          <div className="flex items-center gap-1.5">
-                            <h4 className="font-heading font-bold text-xs text-text-primary">{promo.code}</h4>
-                            <span className="text-[8px] font-heading font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-gold/15">
-                              {franchiseName}
-                            </span>
-                          </div>
-                          <p className="text-[10px] text-text-secondary mt-1">{promo.description}</p>
-                          <p className="text-[9px] text-text-muted mt-0.5">Validity: {promo.startDate} to {promo.endDate}</p>
-                        </div>
-                        <span className="text-[10px] font-heading font-extrabold text-amber-800 bg-amber-50 border border-gold/15 px-2 py-0.5 rounded-pill">
-                          REGIONAL COUPON
-                        </span>
-                      </div>
-                    );
-                  })
-                ) : (
-                  <div className="py-8 text-center text-text-muted text-[11px] font-body flex items-center justify-center gap-1.5">
-                    <Info className="w-4 h-4" />
-                    <span>No regional franchise promotions created yet.</span>
-                  </div>
-                )}
-              </div>
-            </div>
-
           </div>
 
           {/* Right panel: Brand promo creator form */}
@@ -540,6 +542,68 @@ export const Promotions = () => {
                     className="w-full px-3 py-1.5 text-xs border border-stone-300 rounded-input focus:outline-none focus:border-brand font-body"
                   />
                 </div>
+              </div>
+
+              {/* Initial Store Targeting Scoping */}
+              <div className="space-y-2 border-t border-stone-200/60 pt-3">
+                <label className="text-[10px] font-heading font-bold text-text-secondary uppercase block">
+                  Initial Target Outlets
+                </label>
+                
+                <div className="flex items-center gap-4 text-xs font-body mb-2">
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="initialScopeType"
+                      checked={initialScopeAll}
+                      onChange={() => setInitialScopeAll(true)}
+                      className="text-brand focus:ring-brand"
+                    />
+                    <span>All Outlets</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="initialScopeType"
+                      checked={!initialScopeAll}
+                      onChange={() => setInitialScopeAll(false)}
+                      className="text-brand focus:ring-brand"
+                    />
+                    <span>Specific Outlets</span>
+                  </label>
+                </div>
+
+                {!initialScopeAll && (
+                  <div className="max-h-48 overflow-y-auto border border-stone-200 rounded-card p-2.5 bg-stone-50/50 space-y-3">
+                    {franchises.map(franchise => {
+                      const franchiseStores = stores.filter(s => s.franchiseId === franchise.id);
+                      if (franchiseStores.length === 0) return null;
+                      return (
+                        <div key={franchise.id} className="space-y-1.5">
+                          <div className="text-[9px] font-heading font-extrabold text-brand uppercase tracking-wider">
+                            {franchise.name}
+                          </div>
+                          <div className="grid grid-cols-1 gap-1.5 pl-1">
+                            {franchiseStores.map(store => {
+                              const isChecked = selectedStores[store.id] === true;
+                              return (
+                                <label key={store.id} className="flex items-center gap-2 text-[10px] text-text-secondary cursor-pointer hover:text-text-primary">
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={() => handleToggleStoreSelection(store.id)}
+                                    className="rounded border-stone-300 text-brand focus:ring-brand w-3.5 h-3.5"
+                                  />
+                                  <span>{store.name}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               <button

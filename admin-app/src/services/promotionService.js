@@ -1,14 +1,12 @@
-import { mockPromotions } from '../mocks/mockPromotions';
+import { usePromotionStore } from '@shared/store/promotionStore';
 import { useStoreRegistry } from '../store/storeRegistry';
-
-let currentPromotions = [...mockPromotions];
-let storePromoOverrides = {};
 
 export const promotionService = {
   getPromotions: async (scope) => {
     await new Promise(resolve => setTimeout(resolve, 200));
     const { franchiseId, storeId } = scope || {};
     const stores = useStoreRegistry.getState().stores;
+    const { promotions, storePromoOverrides } = usePromotionStore.getState();
     
     if (storeId) {
       const store = stores.find(s => s.id === storeId);
@@ -16,69 +14,56 @@ export const promotionService = {
       
       return {
         success: true,
-        data: currentPromotions.filter(p => 
-          p.scopeType === 'national' ||
-          (p.scopeType === 'regional' && p.scopeId === storeFranchiseId) ||
-          (p.scopeType === 'store' && p.scopeId === storeId)
-        )
+        data: promotions.filter(p => {
+          const isOverriddenDisabled = storePromoOverrides[storeId]?.[p.code] === false;
+          if (isOverriddenDisabled) return false;
+
+          return p.scopeType === 'national' ||
+            (p.scopeType === 'regional' && p.scopeId === storeFranchiseId) ||
+            (p.scopeType === 'store' && p.scopeId === storeId);
+        })
       };
     }
     
     if (franchiseId) {
       return {
         success: true,
-        data: currentPromotions.filter(p => 
+        data: promotions.filter(p => 
           p.scopeType === 'national' ||
           (p.scopeType === 'regional' && p.scopeId === franchiseId)
         )
       };
     }
     
-    return { success: true, data: currentPromotions };
+    return { success: true, data: promotions };
   },
 
   createPromotion: async (promoData) => {
     await new Promise(resolve => setTimeout(resolve, 200));
-    const newPromo = {
-      ...promoData,
-      isActive: true
-    };
-    currentPromotions.push(newPromo);
-    return { success: true, data: newPromo };
+    usePromotionStore.getState().createPromotion(promoData);
+    return { success: true, data: promoData };
   },
 
   togglePromotionStatus: async (code, isActive) => {
     await new Promise(resolve => setTimeout(resolve, 150));
-    const index = currentPromotions.findIndex(p => p.code === code);
-    if (index !== -1) {
-      currentPromotions[index] = { ...currentPromotions[index], isActive };
-      return { success: true, data: currentPromotions[index] };
-    }
-    return { success: false, error: 'Promotion not found' };
+    usePromotionStore.getState().togglePromotionStatus(code, isActive);
+    return { success: true };
   },
 
   getStorePromoOverrides: async () => {
     await new Promise(resolve => setTimeout(resolve, 50));
-    return { success: true, data: storePromoOverrides };
+    return { success: true, data: usePromotionStore.getState().storePromoOverrides };
   },
   
   updateStorePromoOverride: async (storeId, promoCode, isEnabled) => {
     await new Promise(resolve => setTimeout(resolve, 50));
-    if (!storePromoOverrides[storeId]) {
-      storePromoOverrides[storeId] = {};
-    }
-    storePromoOverrides[storeId][promoCode] = isEnabled;
+    usePromotionStore.getState().updateStorePromoOverride(storeId, promoCode, isEnabled);
     return { success: true };
   },
   
   bulkUpdateStorePromoOverrides: async (storeIds, promoCode, isEnabled) => {
     await new Promise(resolve => setTimeout(resolve, 50));
-    storeIds.forEach(storeId => {
-      if (!storePromoOverrides[storeId]) {
-        storePromoOverrides[storeId] = {};
-      }
-      storePromoOverrides[storeId][promoCode] = isEnabled;
-    });
+    usePromotionStore.getState().bulkUpdateStorePromoOverrides(storeIds, promoCode, isEnabled);
     return { success: true };
   }
 };

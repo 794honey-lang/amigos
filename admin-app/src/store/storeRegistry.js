@@ -1,8 +1,8 @@
 import { create } from 'zustand';
-import { mockStores } from '../mocks/mockStores';
+import { mockStores } from '@shared/mocks/mockStores';
 import { mockStoreHours } from '../mocks/mockStoreHours';
 import { mockDeliveryZones } from '../mocks/mockDeliveryZones';
-import { mockFranchises } from '../mocks/mockFranchises';
+import { mockFranchises } from '@shared/mocks/mockFranchises';
 
 export const useStoreRegistry = create((set, get) => ({
   stores: [...mockStores],
