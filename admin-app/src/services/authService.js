@@ -51,7 +51,7 @@ export const authService = {
 
       const user = data.data;
       const permissions = ROLE_PERMISSIONS[user.role] || [];
-      const franchiseId = user.role === 'corporate' ? null : 'fr_001';
+      const franchiseId = user.role === 'corporate' ? null : (user.franchiseId || 'fr_001');
       
       return {
         success: true,

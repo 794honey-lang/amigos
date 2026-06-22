@@ -46,8 +46,9 @@ export const useStoreRegistry = create((set, get) => ({
       const data = await res.json();
       if (data.success) {
         const created = data.data;
+        const { credentials, ...franchiseOnly } = created;
         set((state) => ({
-          franchises: [...state.franchises, created]
+          franchises: [...state.franchises, franchiseOnly]
         }));
         return created;
       }
@@ -106,6 +107,7 @@ export const useStoreRegistry = create((set, get) => ({
       const data = await res.json();
       if (data.success) {
         const created = data.data;
+        const { credentials, ...storeOnly } = created;
 
         const defaultHours = {
           storeId: created.id,
@@ -129,7 +131,7 @@ export const useStoreRegistry = create((set, get) => ({
         };
 
         set((state) => ({
-          stores: [...state.stores, created],
+          stores: [...state.stores, storeOnly],
           storeHours: [...state.storeHours, defaultHours],
           deliveryZones: [...state.deliveryZones, defaultZone]
         }));

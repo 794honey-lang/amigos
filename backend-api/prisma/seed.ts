@@ -121,6 +121,7 @@ async function main() {
         password: u.password,
         role: u.role,
         storeId: u.storeId,
+        franchiseId: (u as any).franchiseId || null,
         isSuperAdmin: isSuper
       },
       create: {
@@ -130,6 +131,7 @@ async function main() {
         password: u.password,
         role: u.role,
         storeId: u.storeId,
+        franchiseId: (u as any).franchiseId || null,
         isSuperAdmin: isSuper
       }
     });

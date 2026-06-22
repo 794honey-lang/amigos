@@ -37,17 +37,53 @@ export const Stores = () => {
   const [formCity, setFormCity] = useState('');
   const [formAddress, setFormAddress] = useState('');
   const [formManager, setFormManager] = useState('');
+  const [formEmail, setFormEmail] = useState('');
   const [formPhone, setFormPhone] = useState('');
   const [formStatus, setFormStatus] = useState('Open');
+  const [formLat, setFormLat] = useState('');
+  const [formLng, setFormLng] = useState('');
+  const [detectingLocation, setDetectingLocation] = useState(false);
+
+  // Generated credentials modal states
+  const [generatedCreds, setGeneratedCreds] = useState(null);
+  const [isCredsModalOpen, setIsCredsModalOpen] = useState(false);
 
   const resetForm = () => {
     setFormName('');
     setFormCity('');
     setFormAddress('');
     setFormManager('');
+    setFormEmail('');
     setFormPhone('');
     setFormStatus('Open');
+    setFormLat('');
+    setFormLng('');
     setEditingStore(null);
+  };
+
+  const handleDetectLocation = () => {
+    if (!navigator.geolocation) {
+      addToast('Geolocation is not supported by your browser', 'error');
+      return;
+    }
+    
+    setDetectingLocation(true);
+    addToast('Requesting GPS access...', 'info');
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        setFormLat(latitude.toFixed(6));
+        setFormLng(longitude.toFixed(6));
+        addToast('✅ Coordinates detected!', 'success');
+        setDetectingLocation(false);
+      },
+      (error) => {
+        setDetectingLocation(false);
+        addToast('Failed to detect location. Please input coordinates manually.', 'error');
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
   };
 
   const handleManageStore = (storeId, storeName) => {
@@ -61,22 +97,30 @@ export const Stores = () => {
     setIsPreviewOpen(true);
   };
 
-  const handleAddStoreSubmit = (e) => {
+  const handleAddStoreSubmit = async (e) => {
     e.preventDefault();
-    if (!formName || !formCity || !formAddress || !formManager || !formPhone) {
+    if (!formName || !formCity || !formAddress || !formManager || !formEmail || !formPhone) {
       addToast('Please fill out all fields', 'error');
       return;
     }
     
-    addStore({
+    const created = await addStore({
       franchiseId: activeFranchiseId,
       name: formName,
       city: formCity,
       address: formAddress,
       managerName: formManager,
+      email: formEmail,
       phone: formPhone,
-      status: formStatus
+      status: formStatus,
+      lat: formLat ? parseFloat(formLat) : undefined,
+      lng: formLng ? parseFloat(formLng) : undefined
     });
+
+    if (created && created.credentials) {
+      setGeneratedCreds(created.credentials);
+      setIsCredsModalOpen(true);
+    }
 
     addToast(`Successfully onboarded store: ${formName}`, 'success');
     setIsAddModalOpen(false);
@@ -91,6 +135,8 @@ export const Stores = () => {
     setFormManager(store.managerName);
     setFormPhone(store.phone);
     setFormStatus(store.status);
+    setFormLat(store.lat !== undefined && store.lat !== null ? String(store.lat) : '');
+    setFormLng(store.lng !== undefined && store.lng !== null ? String(store.lng) : '');
     setIsEditModalOpen(true);
   };
 
@@ -107,7 +153,9 @@ export const Stores = () => {
       address: formAddress,
       managerName: formManager,
       phone: formPhone,
-      status: formStatus
+      status: formStatus,
+      lat: formLat ? parseFloat(formLat) : undefined,
+      lng: formLng ? parseFloat(formLng) : undefined
     });
 
     addToast(`Successfully updated store: ${formName}`, 'success');
@@ -368,6 +416,41 @@ export const Stores = () => {
             />
           </div>
 
+          <div className="grid grid-cols-2 gap-4 items-end">
+            <div className="space-y-1">
+              <label className="text-[10px] font-heading font-bold text-text-secondary uppercase">Latitude</label>
+              <input
+                type="number"
+                step="any"
+                value={formLat}
+                onChange={(e) => setFormLat(e.target.value)}
+                placeholder="e.g. 32.7266"
+                className="w-full px-3 py-2 border border-stone-300 rounded-input focus:outline-none focus:border-brand font-body"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-heading font-bold text-text-secondary uppercase">Longitude</label>
+              <input
+                type="number"
+                step="any"
+                value={formLng}
+                onChange={(e) => setFormLng(e.target.value)}
+                placeholder="e.g. 74.8570"
+                className="w-full px-3 py-2 border border-stone-300 rounded-input focus:outline-none focus:border-brand font-body"
+              />
+            </div>
+          </div>
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={handleDetectLocation}
+              disabled={detectingLocation}
+              className="text-[10px] font-heading font-bold text-brand hover:text-brand-accent flex items-center gap-1 transition-colors cursor-pointer border border-brand/20 bg-brand/5 px-2.5 py-1 rounded-card disabled:opacity-50"
+            >
+              <span>{detectingLocation ? 'Detecting...' : 'Detect Coordinates via GPS'}</span>
+            </button>
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="text-[10px] font-heading font-bold text-text-secondary uppercase">Manager Name</label>
@@ -391,6 +474,18 @@ export const Stores = () => {
                 className="w-full px-3 py-2 border border-stone-300 rounded-input focus:outline-none focus:border-brand font-body"
               />
             </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] font-heading font-bold text-text-secondary uppercase">Manager Email (For Login)</label>
+            <input
+              type="email"
+              required
+              value={formEmail}
+              onChange={(e) => setFormEmail(e.target.value)}
+              placeholder="e.g. manager@amigos.in"
+              className="w-full px-3 py-2 border border-stone-300 rounded-input focus:outline-none focus:border-brand font-body"
+            />
           </div>
 
           <div className="pt-4 flex justify-between border-t border-border">
@@ -510,6 +605,80 @@ export const Stores = () => {
               </button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {/* Generated Credentials Success Modal */}
+      {generatedCreds && (
+        <Modal
+          isOpen={isCredsModalOpen}
+          onClose={() => { setIsCredsModalOpen(false); setGeneratedCreds(null); }}
+          title="Onboarding Successful — Store Login Generated"
+        >
+          <div className="space-y-4 text-xs font-body text-text-secondary">
+            <div className="p-3 bg-green-50 border border-green-200 rounded-card flex gap-3 text-success font-semibold items-start animate-fadeIn">
+              <ShieldCheck className="w-5 h-5 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-text-primary text-[11px] font-bold">Store Manager Account Provisioned</p>
+                <p className="text-[10px] text-success/80 font-normal mt-0.5">
+                  A corresponding user login record has been registered. Please copy these credentials and share them with the Store Manager.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3 bg-stone-50 border border-stone-200 rounded-card p-4">
+              <div className="flex flex-col gap-1">
+                <span className="text-[9px] font-heading font-extrabold text-stone-400 uppercase tracking-wider">Login Username / Email</span>
+                <div className="flex items-center justify-between bg-white border border-stone-300 rounded px-2.5 py-1.5 font-mono font-bold text-text-primary text-xs">
+                  <span>{generatedCreds.email}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(generatedCreds.email);
+                      addToast('Username email copied to clipboard!', 'success');
+                    }}
+                    className="text-brand hover:text-brand-accent font-heading text-[10px] font-bold px-1.5 py-0.5 rounded hover:bg-stone-50 transition-colors cursor-pointer"
+                  >
+                    Copy
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <span className="text-[9px] font-heading font-extrabold text-stone-400 uppercase tracking-wider">Temporary Password</span>
+                <div className="flex items-center justify-between bg-white border border-stone-300 rounded px-2.5 py-1.5 font-mono font-bold text-text-primary text-xs">
+                  <span>{generatedCreds.password}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(generatedCreds.password);
+                      addToast('Password copied to clipboard!', 'success');
+                    }}
+                    className="text-brand hover:text-brand-accent font-heading text-[10px] font-bold px-1.5 py-0.5 rounded hover:bg-stone-50 transition-colors cursor-pointer"
+                  >
+                    Copy
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-card p-3 flex gap-2 text-amber-850 text-[10px]">
+              <Info className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
+              <span>
+                <strong>Warning:</strong> For security reasons, this password will not be shown again. Ensure you copy the credentials before closing this dialog.
+              </span>
+            </div>
+
+            <div className="pt-4 flex justify-end border-t border-border">
+              <button
+                type="button"
+                onClick={() => { setIsCredsModalOpen(false); setGeneratedCreds(null); }}
+                className="px-5 py-2 bg-brand hover:bg-brand-accent text-white font-heading font-semibold rounded-pill text-xs shadow cursor-pointer active:scale-95 transition-all"
+              >
+                Done
+              </button>
+            </div>
+          </div>
         </Modal>
       )}
     </AdminLayout>

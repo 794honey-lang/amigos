@@ -28,6 +28,10 @@ export const Franchises = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingFranchise, setEditingFranchise] = useState(null);
 
+  // Onboarding generated credentials modal
+  const [generatedCreds, setGeneratedCreds] = useState(null);
+  const [isCredsModalOpen, setIsCredsModalOpen] = useState(false);
+
   // Form states
   const [formName, setFormName] = useState('');
   const [formOwner, setFormOwner] = useState('');
@@ -46,14 +50,14 @@ export const Franchises = () => {
     setEditingFranchise(null);
   };
 
-  const handleAddFranchiseSubmit = (e) => {
+  const handleAddFranchiseSubmit = async (e) => {
     e.preventDefault();
     if (!formName || !formOwner || !formEmail || !formPhone || !formAddress) {
       addToast('Please fill out all required fields', 'error');
       return;
     }
 
-    addFranchise({
+    const created = await addFranchise({
       name: formName,
       ownerName: formOwner,
       district: formDistrict,
@@ -61,6 +65,11 @@ export const Franchises = () => {
       phone: formPhone,
       address: formAddress
     });
+
+    if (created && created.credentials) {
+      setGeneratedCreds(created.credentials);
+      setIsCredsModalOpen(true);
+    }
 
     addToast(`Successfully onboarded franchise: ${formName}`, 'success');
     setIsAddModalOpen(false);
@@ -572,6 +581,80 @@ export const Franchises = () => {
               </button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {/* Generated Credentials Success Modal */}
+      {generatedCreds && (
+        <Modal
+          isOpen={isCredsModalOpen}
+          onClose={() => { setIsCredsModalOpen(false); setGeneratedCreds(null); }}
+          title="Onboarding Successful — Login Credentials Generated"
+        >
+          <div className="space-y-4 text-xs font-body text-text-secondary">
+            <div className="p-3 bg-green-50 border border-green-200 rounded-card flex gap-3 text-success font-semibold items-start animate-fadeIn">
+              <CheckCircle className="w-5 h-5 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-text-primary text-[11px] font-bold">Franchise Owner Account Provisioned</p>
+                <p className="text-[10px] text-success/80 font-normal mt-0.5">
+                  A corresponding user login record has been registered. Please copy these credentials and share them with the Franchise Owner.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3 bg-stone-50 border border-stone-200 rounded-card p-4">
+              <div className="flex flex-col gap-1">
+                <span className="text-[9px] font-heading font-extrabold text-stone-400 uppercase tracking-wider">Login Username / Email</span>
+                <div className="flex items-center justify-between bg-white border border-stone-300 rounded px-2.5 py-1.5 font-mono font-bold text-text-primary text-xs">
+                  <span>{generatedCreds.email}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(generatedCreds.email);
+                      addToast('Username email copied to clipboard!', 'success');
+                    }}
+                    className="text-brand hover:text-brand-accent font-heading text-[10px] font-bold px-1.5 py-0.5 rounded hover:bg-stone-50 transition-colors cursor-pointer"
+                  >
+                    Copy
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <span className="text-[9px] font-heading font-extrabold text-stone-400 uppercase tracking-wider">Temporary Password</span>
+                <div className="flex items-center justify-between bg-white border border-stone-300 rounded px-2.5 py-1.5 font-mono font-bold text-text-primary text-xs">
+                  <span>{generatedCreds.password}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(generatedCreds.password);
+                      addToast('Password copied to clipboard!', 'success');
+                    }}
+                    className="text-brand hover:text-brand-accent font-heading text-[10px] font-bold px-1.5 py-0.5 rounded hover:bg-stone-50 transition-colors cursor-pointer"
+                  >
+                    Copy
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-card p-3 flex gap-2 text-amber-850 text-[10px]">
+              <Info className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
+              <span>
+                <strong>Warning:</strong> For security reasons, this password will not be shown again. Ensure you copy the credentials before closing this dialog.
+              </span>
+            </div>
+
+            <div className="pt-4 flex justify-end border-t border-border">
+              <button
+                type="button"
+                onClick={() => { setIsCredsModalOpen(false); setGeneratedCreds(null); }}
+                className="px-5 py-2 bg-brand hover:bg-brand-accent text-white font-heading font-semibold rounded-pill text-xs shadow cursor-pointer active:scale-95 transition-all"
+              >
+                Done
+              </button>
+            </div>
+          </div>
         </Modal>
       )}
     </AdminLayout>

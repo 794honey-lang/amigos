@@ -15,6 +15,7 @@ model User {
   name          String
   role          String   // "corporate", "franchise", "store", "customer"
   storeId       String?  // set for store managers
+  franchiseId   String?  // set for franchise owners
   addresses     Json     @default("[]")   // array of address objects
   favourites    Json     @default("[]")   // array of menu item IDs
   walletBalance Float    @default(0)

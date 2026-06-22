@@ -14,7 +14,7 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
   return d;
 };
 
-const calculateTotals = (items, deliveryType, coupon, deliveryAddress, storeZoneConfig = null) => {
+const calculateTotals = (items, deliveryType, coupon, deliveryAddress, storeZoneConfig = null, activeStore = null) => {
   if (items.length === 0) {
     return {
       itemTotal: 0,
@@ -61,7 +61,7 @@ const calculateTotals = (items, deliveryType, coupon, deliveryAddress, storeZone
   if (deliveryType === 'delivery') {
     // storeZoneConfig is injected by checkout page via setStoreZoneConfig()
     // Default safe values used if not yet set
-    let storeZone = storeZoneConfig || {
+    let storeZone = (storeZoneConfig && storeZoneConfig.mode) ? storeZoneConfig : {
       mode: 'radius',
       radiusKm: 5,
       deliveryCharge: 30,
@@ -74,9 +74,9 @@ const calculateTotals = (items, deliveryType, coupon, deliveryAddress, storeZone
     enableFreeDelivery = !!storeZone.enableFreeDelivery;
     freeDeliveryMinOrder = Number(storeZone.freeDeliveryMinOrder || 0);
 
-    // 2. Determine distance from store_001 (lat: 32.7266, lng: 74.8570)
-    const storeLat = 32.7266;
-    const storeLng = 74.8570;
+    // 2. Determine distance from active store
+    const storeLat = activeStore && activeStore.lat !== undefined ? Number(activeStore.lat) : 32.7266;
+    const storeLng = activeStore && activeStore.lng !== undefined ? Number(activeStore.lng) : 74.8570;
     
     if (deliveryAddress && deliveryAddress.latitude && deliveryAddress.longitude) {
       distanceKm = calculateDistance(
@@ -170,6 +170,7 @@ export const useCartStore = create(
       coupon: null,
       deliveryAddress: null,
       storeZoneConfig: null,   // Injected by Checkout from store's delivery zone config
+      activeStore: null,       // Track the dynamic assigned delivery store
       
       // Totals
       itemTotal: 0,
@@ -186,19 +187,35 @@ export const useCartStore = create(
       setDeliveryType: (type) => {
         set({ deliveryType: type });
         const state = get();
-        set(calculateTotals(state.items, type, state.coupon, state.deliveryAddress, state.storeZoneConfig));
+        set(calculateTotals(state.items, type, state.coupon, state.deliveryAddress, state.storeZoneConfig, state.activeStore));
       },
 
       setDeliveryAddress: (address) => {
         set({ deliveryAddress: address });
         const state = get();
-        set(calculateTotals(state.items, state.deliveryType, state.coupon, address, state.storeZoneConfig));
+        set(calculateTotals(state.items, state.deliveryType, state.coupon, address, state.storeZoneConfig, state.activeStore));
       },
 
       setStoreZoneConfig: (zoneConfig) => {
         set({ storeZoneConfig: zoneConfig });
         const state = get();
-        set(calculateTotals(state.items, state.deliveryType, state.coupon, state.deliveryAddress, zoneConfig));
+        set(calculateTotals(state.items, state.deliveryType, state.coupon, state.deliveryAddress, zoneConfig, state.activeStore));
+      },
+
+      setActiveStore: (store) => {
+        set({ activeStore: store });
+        if (store) {
+          localStorage.setItem('amigos_active_store', store.id);
+          let zoneConfig = null;
+          if (store.deliveryZone) {
+            zoneConfig = typeof store.deliveryZone === 'string'
+              ? JSON.parse(store.deliveryZone)
+              : store.deliveryZone;
+          }
+          set({ storeZoneConfig: zoneConfig });
+        }
+        const state = get();
+        set(calculateTotals(state.items, state.deliveryType, state.coupon, state.deliveryAddress, state.storeZoneConfig, store));
       },
 
       addItem: (newItem) => {
@@ -230,7 +247,7 @@ export const useCartStore = create(
 
         set({ items: updatedItems });
         const updatedState = get();
-        set(calculateTotals(updatedState.items, updatedState.deliveryType, updatedState.coupon, updatedState.deliveryAddress, updatedState.storeZoneConfig));
+        set(calculateTotals(updatedState.items, updatedState.deliveryType, updatedState.coupon, updatedState.deliveryAddress, updatedState.storeZoneConfig, updatedState.activeStore));
       },
 
       removeItem: (itemId) => {
@@ -242,7 +259,7 @@ export const useCartStore = create(
         // If cart is empty, remove coupon too
         const finalCoupon = updatedItems.length === 0 ? null : updatedState.coupon;
         set({ coupon: finalCoupon });
-        set(calculateTotals(updatedItems, updatedState.deliveryType, finalCoupon, updatedState.deliveryAddress, updatedState.storeZoneConfig));
+        set(calculateTotals(updatedItems, updatedState.deliveryType, finalCoupon, updatedState.deliveryAddress, updatedState.storeZoneConfig, updatedState.activeStore));
       },
 
       updateQty: (itemId, change) => {
@@ -262,19 +279,19 @@ export const useCartStore = create(
         const updatedState = get();
         const finalCoupon = updatedItems.length === 0 ? null : updatedState.coupon;
         set({ coupon: finalCoupon });
-        set(calculateTotals(updatedItems, updatedState.deliveryType, finalCoupon, updatedState.deliveryAddress, updatedState.storeZoneConfig));
+        set(calculateTotals(updatedItems, updatedState.deliveryType, finalCoupon, updatedState.deliveryAddress, updatedState.storeZoneConfig, updatedState.activeStore));
       },
 
       applyCoupon: (couponData) => {
         set({ coupon: couponData });
         const state = get();
-        set(calculateTotals(state.items, state.deliveryType, couponData, state.deliveryAddress, state.storeZoneConfig));
+        set(calculateTotals(state.items, state.deliveryType, couponData, state.deliveryAddress, state.storeZoneConfig, state.activeStore));
       },
 
       removeCoupon: () => {
         set({ coupon: null });
         const state = get();
-        set(calculateTotals(state.items, state.deliveryType, null, state.deliveryAddress, state.storeZoneConfig));
+        set(calculateTotals(state.items, state.deliveryType, null, state.deliveryAddress, state.storeZoneConfig, state.activeStore));
       },
 
       clearCart: () => {

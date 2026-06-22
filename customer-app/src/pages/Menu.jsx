@@ -12,7 +12,7 @@ export const Menu = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { addToast } = useUiStore();
-  const { addItem } = useCartStore();
+  const { addItem, activeStore } = useCartStore();
 
   const [categories, setCategories] = useState([]);
   const [items, setItems] = useState([]);
@@ -39,20 +39,21 @@ export const Menu = () => {
     fetchMenuData();
   }, [categoryParam]);
 
-  // Load Items on category or search query change
+  // Load Items on category, search query, or active store change
   useEffect(() => {
     const fetchItems = async () => {
       if (!activeCategory) return;
       const res = await menuService.getMenuItems({
         category: activeCategory,
-        search: searchQuery
+        search: searchQuery,
+        storeId: activeStore?.id
       });
       if (res.success) {
         setItems(res.data);
       }
     };
     fetchItems();
-  }, [activeCategory, searchQuery]);
+  }, [activeCategory, searchQuery, activeStore]);
 
   const handleTabChange = (categoryId) => {
     setActiveCategory(categoryId);

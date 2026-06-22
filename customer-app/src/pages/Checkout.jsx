@@ -5,9 +5,58 @@ import { useCartStore } from '@shared/store/cartStore';
 import { useAuthStore } from '@shared/store/authStore';
 import { useOrderStore } from '@shared/store/orderStore';
 import { useUiStore } from '@shared/store/uiStore';
+import { storeService } from '@shared/services/storeService';
 import { Card } from '@shared/components/ui/Card';
 import { BottomSheet } from '@shared/components/ui/BottomSheet';
 import { Button } from '@shared/components/ui/Button';
+
+// Helper to calculate distance between coordinates
+const calculateDistance = (lat1, lon1, lat2, lon2) => {
+  const R = 6371; // Radius of the earth in km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+};
+
+// Helper to check if location coordinates are inside store delivery boundary
+const isInsideStoreZone = (store, lat, lng) => {
+  if (!store.deliveryZone) return false;
+  const zone = typeof store.deliveryZone === 'string'
+    ? JSON.parse(store.deliveryZone)
+    : store.deliveryZone;
+  
+  if (!zone || !zone.mode) return false;
+  
+  const distanceKm = calculateDistance(store.lat, store.lng, lat, lng);
+  
+  if (zone.mode === 'radius') {
+    return distanceKm <= (zone.radiusKm || 5);
+  } else if (zone.mode === 'polygon') {
+    if (zone.polygonCoordinates && zone.polygonCoordinates.length >= 3) {
+      let isInside = false;
+      const x = Number(lat);
+      const y = Number(lng);
+      
+      const vs = zone.polygonCoordinates;
+      for (let i = 0, j = vs.length - 1; i < vs.length; j = i++) {
+        const xi = Number(vs[i].lat), yi = Number(vs[i].lng);
+        const xj = Number(vs[j].lat), yj = Number(vs[j].lng);
+        
+        const intersect = ((yi > y) !== (yj > y))
+            && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+        if (intersect) isInside = !isInside;
+      }
+      return isInside || distanceKm <= 1.5;
+    }
+    return distanceKm <= (zone.radiusKm || 5);
+  }
+  return false;
+};
 
 export const Checkout = () => {
   const navigate = useNavigate();
@@ -15,7 +64,7 @@ export const Checkout = () => {
   const { 
     items, deliveryType, setDeliveryType, toPay, deliveryFee, itemTotal, taxes, discount, clearCart,
     setDeliveryAddress, isOutOfDeliveryZone, minOrderViolation, distanceKm,
-    enableFreeDelivery, freeDeliveryMinOrder
+    enableFreeDelivery, freeDeliveryMinOrder, storeZoneConfig, activeStore, setActiveStore
   } = useCartStore();
   const { placeOrder, loading } = useOrderStore();
   const { addToast } = useUiStore();
@@ -25,7 +74,9 @@ export const Checkout = () => {
   const [selectedAddressIndex, setSelectedAddressIndex] = useState(0);
   const [addressSheetOpen, setAddressSheetOpen] = useState(false);
   const [addAddressSheetOpen, setAddAddressSheetOpen] = useState(false);
-  const [minOrderThreshold, setMinOrderThreshold] = useState(200);
+  const [storesList, setStoresList] = useState([]);
+
+  const minOrderThreshold = storeZoneConfig?.minOrderValue || 200;
 
   // Quick Address States
   const [newAddrLabel, setNewAddrLabel] = useState('Home');
@@ -42,28 +93,58 @@ export const Checkout = () => {
     pincode: ''
   };
 
-  // Sync selected address with the cart store to calculate dynamic delivery fee
+  // Fetch stores list on mount
   useEffect(() => {
-    if (deliveryType === 'delivery' && user?.addresses && user.addresses.length > 0) {
-      setDeliveryAddress(selectedAddress);
-    } else {
-      setDeliveryAddress(null);
-    }
-  }, [selectedAddress, deliveryType, user]);
+    const fetchStores = async () => {
+      const res = await storeService.getStores();
+      if (res.success && Array.isArray(res.data)) {
+        setStoresList(res.data.filter(s => s.status === 'Open'));
+      }
+    };
+    fetchStores();
+  }, []);
 
-  // Load active store's minimum order threshold dynamically
+  // Resolve active store and sync address whenever selected address or stores list changes
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem('amigos_delivery_zones');
-      if (stored) {
-        const zones = JSON.parse(stored);
-        const activeZone = zones.find(z => z.storeId === 'store_001');
-        if (activeZone && activeZone.minOrderValue !== undefined) {
-          setMinOrderThreshold(activeZone.minOrderValue);
+    const resolveAndSync = async () => {
+      if (deliveryType !== 'delivery' || !selectedAddress || selectedAddress.label === 'Guest Location' || storesList.length === 0) {
+        setDeliveryAddress(null);
+        return;
+      }
+
+      if (selectedAddress.latitude && selectedAddress.longitude) {
+        const uLat = Number(selectedAddress.latitude);
+        const uLng = Number(selectedAddress.longitude);
+
+        const servingStores = storesList.filter(store => isInsideStoreZone(store, uLat, uLng));
+        let resolvedStore = null;
+
+        if (servingStores.length > 0) {
+          servingStores.sort((a, b) => {
+            const distA = calculateDistance(a.lat, a.lng, uLat, uLng);
+            const distB = calculateDistance(b.lat, b.lng, uLat, uLng);
+            return distA - distB;
+          });
+          resolvedStore = servingStores[0];
+        } else {
+          const sortedAllOpen = [...storesList].sort((a, b) => {
+            const distA = calculateDistance(a.lat, a.lng, uLat, uLng);
+            const distB = calculateDistance(b.lat, b.lng, uLat, uLng);
+            return distA - distB;
+          });
+          resolvedStore = sortedAllOpen[0];
+        }
+
+        if (resolvedStore && (!activeStore || activeStore.id !== resolvedStore.id)) {
+          setActiveStore(resolvedStore);
         }
       }
-    } catch (e) {}
-  }, []);
+
+      setDeliveryAddress(selectedAddress);
+    };
+
+    resolveAndSync();
+  }, [selectedAddress, deliveryType, storesList, activeStore, setActiveStore, setDeliveryAddress]);
 
   const handleAddAddress = async (e) => {
     e.preventDefault();
@@ -127,6 +208,8 @@ export const Checkout = () => {
     }
 
     const payload = {
+      storeId: activeStore?.id || null,
+      storeName: activeStore?.name || null,
       items,
       itemTotal,
       deliveryFee,

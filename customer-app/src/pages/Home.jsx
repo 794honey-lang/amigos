@@ -4,10 +4,60 @@ import { MapPin, ChevronDown, Bell, Search, SlidersHorizontal, Plus, Star } from
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCartStore } from '@shared/store/cartStore';
 import { useUiStore } from '@shared/store/uiStore';
+import { useAuthStore } from '@shared/store/authStore';
 import { menuService } from '@shared/services/menuService';
 import { couponService } from '@shared/services/couponService';
+import { storeService } from '@shared/services/storeService';
 import { Card } from '@shared/components/ui/Card';
 import { VegBadge } from '@shared/components/ui/VegBadge';
+
+// Helper to calculate distance between coordinates
+const calculateDistance = (lat1, lon1, lat2, lon2) => {
+  const R = 6371; // Radius of the earth in km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+};
+
+// Helper to check if user location coordinates are inside store delivery boundary
+const isInsideStoreZone = (store, lat, lng) => {
+  if (!store.deliveryZone) return false;
+  const zone = typeof store.deliveryZone === 'string'
+    ? JSON.parse(store.deliveryZone)
+    : store.deliveryZone;
+  
+  if (!zone || !zone.mode) return false;
+  
+  const distanceKm = calculateDistance(store.lat, store.lng, lat, lng);
+  
+  if (zone.mode === 'radius') {
+    return distanceKm <= (zone.radiusKm || 5);
+  } else if (zone.mode === 'polygon') {
+    if (zone.polygonCoordinates && zone.polygonCoordinates.length >= 3) {
+      let isInside = false;
+      const x = Number(lat);
+      const y = Number(lng);
+      
+      const vs = zone.polygonCoordinates;
+      for (let i = 0, j = vs.length - 1; i < vs.length; j = i++) {
+        const xi = Number(vs[i].lat), yi = Number(vs[i].lng);
+        const xj = Number(vs[j].lat), yj = Number(vs[j].lng);
+        
+        const intersect = ((yi > y) !== (yj > y))
+            && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+        if (intersect) isInside = !isInside;
+      }
+      return isInside || distanceKm <= 1.5;
+    }
+    return distanceKm <= (zone.radiusKm || 5);
+  }
+  return false;
+};
 
 // Lucide icon helper
 import * as LucideIcons from 'lucide-react';
@@ -23,7 +73,8 @@ const MOCK_BANNERS = mockBanners;
 
 export const Home = () => {
   const navigate = useNavigate();
-  const { addItem } = useCartStore();
+  const { user } = useAuthStore();
+  const { addItem, activeStore, setActiveStore } = useCartStore();
   const { addToast } = useUiStore();
   
   const [categories, setCategories] = useState([]);
@@ -32,15 +83,54 @@ export const Home = () => {
   const [activeBanner, setActiveBanner] = useState(0);
   const scrollContainerRef = useRef(null);
 
-  // Load Home Screen Content
+  // Load Home Screen Content & Resolve Store
   useEffect(() => {
     const loadHomeData = async () => {
+      const storeRes = await storeService.getStores();
+      let resolvedStore = null;
+      let openStores = [];
+
+      if (storeRes.success && Array.isArray(storeRes.data)) {
+        openStores = storeRes.data.filter(s => s.status === 'Open');
+      }
+
+      const defaultAddress = user?.addresses?.[0];
+      if (defaultAddress && defaultAddress.latitude && defaultAddress.longitude && openStores.length > 0) {
+        const uLat = Number(defaultAddress.latitude);
+        const uLng = Number(defaultAddress.longitude);
+
+        const servingStores = openStores.filter(store => isInsideStoreZone(store, uLat, uLng));
+        
+        if (servingStores.length > 0) {
+          servingStores.sort((a, b) => {
+            const distA = calculateDistance(a.lat, a.lng, uLat, uLng);
+            const distB = calculateDistance(b.lat, b.lng, uLat, uLng);
+            return distA - distB;
+          });
+          resolvedStore = servingStores[0];
+        } else {
+          const sortedAllOpen = [...openStores].sort((a, b) => {
+            const distA = calculateDistance(a.lat, a.lng, uLat, uLng);
+            const distB = calculateDistance(b.lat, b.lng, uLat, uLng);
+            return distA - distB;
+          });
+          resolvedStore = sortedAllOpen[0];
+        }
+      }
+
+      if (!resolvedStore && openStores.length > 0) {
+        resolvedStore = openStores.find(s => s.id === 'store_001') || openStores[0];
+      }
+
+      if (resolvedStore) {
+        setActiveStore(resolvedStore);
+      }
+
       const catRes = await menuService.getCategories();
       if (catRes.success) setCategories(catRes.data);
 
-      const menuRes = await menuService.getMenuItems();
+      const menuRes = await menuService.getMenuItems({ storeId: resolvedStore?.id });
       if (menuRes.success) {
-        // Filter items that are bestsellers
         setBestsellers(menuRes.data.filter(item => item.isBestseller));
       }
 
@@ -49,7 +139,7 @@ export const Home = () => {
     };
 
     loadHomeData();
-  }, []);
+  }, [user]);
 
   // Auto scroll banners with swipe safety
   useEffect(() => {
@@ -114,17 +204,21 @@ export const Home = () => {
     <div className="flex-1 flex flex-col bg-bg">
       {/* Sticky Header */}
       <header className="sticky top-0 z-30 bg-white border-b border-border px-4 py-3 flex items-center justify-between shadow-sm">
-        <div className="flex items-center gap-1.5 cursor-pointer">
+        <div className="flex items-center gap-1.5 cursor-pointer" onClick={() => navigate('/profile')}>
           <MapPin className="w-5 h-5 text-brand" />
-          <div className="flex flex-col">
+          <div className="flex flex-col text-left">
             <div className="flex items-center gap-0.5">
               <span className="font-heading font-bold text-xs text-text-primary">
-                Home · Civil Lines, Jammu
+                {user?.addresses?.length > 0 
+                  ? `${user.addresses[0].label} · ${activeStore?.name || 'Loading Store...'}`
+                  : `Select Address · ${activeStore?.name || 'Loading Store...'}`}
               </span>
               <ChevronDown className="w-3.5 h-3.5 text-text-secondary" />
             </div>
-            <span className="text-[9px] font-body text-text-muted">
-              123, Gandhi Nagar, Civil Lines...
+            <span className="text-[9px] font-body text-text-muted truncate max-w-[200px]">
+              {user?.addresses?.length > 0 
+                ? `${user.addresses[0].line}, ${user.addresses[0].city}`
+                : 'Please add delivery address in Profile.'}
             </span>
           </div>
         </div>

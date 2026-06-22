@@ -75,6 +75,13 @@ const getClientIp = (req: any): string =>
   req.socket?.remoteAddress ||
   'unknown';
 
+// Helper: generate friendly temporary password
+const generateTempPassword = (name: string): string => {
+  const cleanName = name.trim().toLowerCase().split(/\s+/)[0].replace(/[^a-z]/g, '');
+  const randomDigits = Math.floor(1000 + Math.random() * 9000);
+  return `amigos-${cleanName || 'owner'}-${randomDigits}`;
+};
+
 app.post('/api/auth/login', async (req, res) => {
   const { phone, otp, email, password } = req.body;
   const ip = getClientIp(req);
@@ -120,6 +127,7 @@ app.post('/api/auth/login', async (req, res) => {
         email: user.email,
         role: user.role,
         storeId: user.storeId,
+        franchiseId: user.franchiseId,
         addresses: user.addresses,
         favourites: user.favourites,
         walletBalance: user.walletBalance,
@@ -164,6 +172,7 @@ app.post('/api/auth/login', async (req, res) => {
         email: user.email,
         role: user.role,
         storeId: user.storeId,
+        franchiseId: user.franchiseId,
         addresses: user.addresses,
         favourites: user.favourites,
         walletBalance: user.walletBalance,
@@ -207,6 +216,7 @@ app.get('/api/users/:idOrPhone', async (req, res) => {
         email: user.email,
         role: user.role,
         storeId: user.storeId,
+        franchiseId: user.franchiseId,
         addresses: user.addresses,
         favourites: user.favourites,
         walletBalance: user.walletBalance
@@ -252,6 +262,7 @@ app.put('/api/users/:idOrPhone/profile', async (req, res) => {
         email: updated.email,
         role: updated.role,
         storeId: updated.storeId,
+        franchiseId: updated.franchiseId,
         addresses: updated.addresses,
         favourites: updated.favourites,
         walletBalance: updated.walletBalance
@@ -863,6 +874,19 @@ app.get('/api/franchises', async (req, res) => {
 app.post('/api/franchises', async (req, res) => {
   const payload = req.body;
   try {
+    if (payload.email) {
+      const existingEmail = await prisma.user.findUnique({ where: { email: payload.email } });
+      if (existingEmail) {
+        return res.status(400).json({ success: false, error: 'A user with this email is already registered.' });
+      }
+    }
+    if (payload.phone) {
+      const existingPhone = await prisma.user.findUnique({ where: { phone: payload.phone } });
+      if (existingPhone) {
+        return res.status(400).json({ success: false, error: 'A user with this phone number is already registered.' });
+      }
+    }
+
     const lastFranchise = await prisma.franchise.findFirst({
       orderBy: { id: 'desc' }
     });
@@ -874,6 +898,8 @@ app.post('/api/franchises', async (req, res) => {
       }
     }
     const newId = `fr_${String(nextNum).padStart(3, '0')}`;
+    const tempPassword = generateTempPassword(payload.ownerName || 'owner');
+
     const newFranchise = await prisma.franchise.create({
       data: {
         id: newId,
@@ -885,7 +911,29 @@ app.post('/api/franchises', async (req, res) => {
         address: payload.address || ''
       }
     });
-    res.json({ success: true, data: newFranchise });
+
+    await prisma.user.create({
+      data: {
+        name: payload.ownerName || payload.name,
+        email: payload.email || null,
+        phone: payload.phone || null,
+        password: tempPassword,
+        role: 'franchise',
+        franchiseId: newId,
+        disabled: false
+      }
+    });
+
+    res.json({
+      success: true,
+      data: {
+        ...newFranchise,
+        credentials: {
+          email: payload.email || '',
+          password: tempPassword
+        }
+      }
+    });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -934,6 +982,19 @@ app.get('/api/stores', async (req, res) => {
 app.post('/api/stores', async (req, res) => {
   const payload = req.body;
   try {
+    if (payload.email) {
+      const existingEmail = await prisma.user.findUnique({ where: { email: payload.email } });
+      if (existingEmail) {
+        return res.status(400).json({ success: false, error: 'A user with this email is already registered.' });
+      }
+    }
+    if (payload.phone) {
+      const existingPhone = await prisma.user.findUnique({ where: { phone: payload.phone } });
+      if (existingPhone) {
+        return res.status(400).json({ success: false, error: 'A user with this phone number is already registered.' });
+      }
+    }
+
     const lastStore = await prisma.store.findFirst({
       orderBy: { id: 'desc' }
     });
@@ -945,6 +1006,8 @@ app.post('/api/stores', async (req, res) => {
       }
     }
     const newId = `store_${String(nextNum).padStart(3, '0')}`;
+    const tempPassword = generateTempPassword(payload.managerName || 'manager');
+
     const newStore = await prisma.store.create({
       data: {
         id: newId,
@@ -959,7 +1022,30 @@ app.post('/api/stores', async (req, res) => {
         phone: payload.phone || ''
       }
     });
-    res.json({ success: true, data: newStore });
+
+    await prisma.user.create({
+      data: {
+        name: payload.managerName || payload.name,
+        email: payload.email || null,
+        phone: payload.phone || null,
+        password: tempPassword,
+        role: 'store',
+        storeId: newId,
+        franchiseId: payload.franchiseId,
+        disabled: false
+      }
+    });
+
+    res.json({
+      success: true,
+      data: {
+        ...newStore,
+        credentials: {
+          email: payload.email || '',
+          password: tempPassword
+        }
+      }
+    });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }
