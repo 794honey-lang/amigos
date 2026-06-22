@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { useScopeStore } from '../../store/scopeStore';
@@ -12,6 +12,38 @@ import {
   ArrowRight, Landmark, CreditCard, Smartphone, Info,
   Plus, Edit3, Trash2
 } from 'lucide-react';
+
+const loadGoogleMapsScript = (apiKey, callback) => {
+  if (window.google && window.google.maps) {
+    callback();
+    return;
+  }
+  
+  const existingScript = document.getElementById('googleMapsScript');
+  if (existingScript) {
+    if (window.google) {
+      callback();
+    } else {
+      existingScript.addEventListener('load', callback);
+    }
+    return;
+  }
+
+  const keyParam = apiKey ? `key=${apiKey}&` : '';
+  const script = document.createElement('script');
+  script.src = `https://maps.googleapis.com/maps/api/js?${keyParam}libraries=drawing,geometry`;
+  script.id = 'googleMapsScript';
+  script.async = true;
+  script.defer = true;
+  script.onload = () => {
+    if (callback) callback();
+  };
+  script.onerror = () => {
+    const errEvent = new CustomEvent('google_maps_load_error');
+    window.dispatchEvent(errEvent);
+  };
+  document.body.appendChild(script);
+};
 
 export const Stores = () => {
   const navigate = useNavigate();
@@ -47,6 +79,99 @@ export const Stores = () => {
   // Generated credentials modal states
   const [generatedCreds, setGeneratedCreds] = useState(null);
   const [isCredsModalOpen, setIsCredsModalOpen] = useState(false);
+  const [isMapPickerOpen, setIsMapPickerOpen] = useState(false);
+  const [tempLat, setTempLat] = useState(32.7266);
+  const [tempLng, setTempLng] = useState(74.8570);
+  const [googleMapsLoaded, setGoogleMapsLoaded] = useState(false);
+  const mapPickerRef = useRef(null);
+  const mapInstanceRef = useRef(null);
+  const markerRef = useRef(null);
+
+  // Load Google Maps API when needed
+  useEffect(() => {
+    if (isMapPickerOpen && !googleMapsLoaded) {
+      const apiKey = localStorage.getItem('amigos_google_maps_api_key') || '';
+      loadGoogleMapsScript(apiKey, () => {
+        setGoogleMapsLoaded(true);
+      });
+    }
+  }, [isMapPickerOpen, googleMapsLoaded]);
+
+  // Initialize Map
+  useEffect(() => {
+    if (!isMapPickerOpen || !googleMapsLoaded || !mapPickerRef.current) return;
+
+    const center = { lat: Number(tempLat) || 32.7266, lng: Number(tempLng) || 74.8570 };
+
+    const map = new window.google.maps.Map(mapPickerRef.current, {
+      center,
+      zoom: 13,
+      mapTypeId: 'roadmap',
+      disableDefaultUI: false,
+      zoomControl: true,
+      mapTypeControl: false,
+      scaleControl: true,
+      streetViewControl: false,
+      rotateControl: false,
+      fullscreenControl: false
+    });
+
+    mapInstanceRef.current = map;
+
+    // Add draggable marker
+    const marker = new window.google.maps.Marker({
+      position: center,
+      map,
+      draggable: true,
+      title: 'Store Location',
+      icon: {
+        url: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png'
+      }
+    });
+
+    markerRef.current = marker;
+
+    // Add map click listener to move marker
+    const clickListener = map.addListener('click', (e) => {
+      const lat = e.latLng.lat();
+      const lng = e.latLng.lng();
+      marker.setPosition({ lat, lng });
+      setTempLat(lat);
+      setTempLng(lng);
+    });
+
+    // Add marker drag listener
+    marker.addListener('dragend', () => {
+      const newPos = marker.getPosition();
+      if (newPos) {
+        setTempLat(newPos.lat());
+        setTempLng(newPos.lng());
+      }
+    });
+
+    // Clean up
+    return () => {
+      window.google.maps.event.removeListener(clickListener);
+      if (markerRef.current) {
+        markerRef.current.setMap(null);
+      }
+    };
+  }, [isMapPickerOpen, googleMapsLoaded]);
+
+  const handleOpenMapPicker = () => {
+    const initialLat = formLat ? parseFloat(formLat) : 32.7266;
+    const initialLng = formLng ? parseFloat(formLng) : 74.8570;
+    setTempLat(initialLat);
+    setTempLng(initialLng);
+    setIsMapPickerOpen(true);
+  };
+
+  const handleConfirmMapLocation = () => {
+    setFormLat(Number(tempLat).toFixed(6));
+    setFormLng(Number(tempLng).toFixed(6));
+    addToast('✅ Store location coordinates updated!', 'success');
+    setIsMapPickerOpen(false);
+  };
 
   const resetForm = () => {
     setFormName('');
@@ -296,6 +421,7 @@ export const Stores = () => {
               <div className="space-y-1 pl-6">
                 <p><strong>Manager:</strong> {selectedStore.managerName}</p>
                 <p><strong>Phone:</strong> {selectedStore.phone}</p>
+                <p><strong>GPS Coordinates:</strong> {selectedStore.lat !== undefined && selectedStore.lng !== undefined ? `${selectedStore.lat.toFixed(6)}, ${selectedStore.lng.toFixed(6)}` : 'Not Set'}</p>
                 <p className="flex items-start gap-1">
                   <MapPin className="w-3.5 h-3.5 text-text-muted mt-0.5 shrink-0" />
                   <span>{selectedStore.address}</span>
@@ -440,7 +566,7 @@ export const Stores = () => {
               />
             </div>
           </div>
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
             <button
               type="button"
               onClick={handleDetectLocation}
@@ -448,6 +574,13 @@ export const Stores = () => {
               className="text-[10px] font-heading font-bold text-brand hover:text-brand-accent flex items-center gap-1 transition-colors cursor-pointer border border-brand/20 bg-brand/5 px-2.5 py-1 rounded-card disabled:opacity-50"
             >
               <span>{detectingLocation ? 'Detecting...' : 'Detect Coordinates via GPS'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleOpenMapPicker}
+              className="text-[10px] font-heading font-bold text-brand hover:text-brand-accent flex items-center gap-1 transition-colors cursor-pointer border border-brand/20 bg-brand/5 px-2.5 py-1 rounded-card"
+            >
+              <span>Select on Google Map</span>
             </button>
           </div>
 
@@ -564,6 +697,48 @@ export const Stores = () => {
               />
             </div>
 
+            <div className="grid grid-cols-2 gap-4 items-end">
+              <div className="space-y-1">
+                <label className="text-[10px] font-heading font-bold text-text-secondary uppercase">Latitude</label>
+                <input
+                  type="number"
+                  step="any"
+                  value={formLat}
+                  onChange={(e) => setFormLat(e.target.value)}
+                  placeholder="e.g. 32.7266"
+                  className="w-full px-3 py-2 border border-stone-300 rounded-input focus:outline-none focus:border-brand font-body"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-heading font-bold text-text-secondary uppercase">Longitude</label>
+                <input
+                  type="number"
+                  step="any"
+                  value={formLng}
+                  onChange={(e) => setFormLng(e.target.value)}
+                  placeholder="e.g. 74.8570"
+                  className="w-full px-3 py-2 border border-stone-300 rounded-input focus:outline-none focus:border-brand font-body"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={handleDetectLocation}
+                disabled={detectingLocation}
+                className="text-[10px] font-heading font-bold text-brand hover:text-brand-accent flex items-center gap-1 transition-colors cursor-pointer border border-brand/20 bg-brand/5 px-2.5 py-1 rounded-card disabled:opacity-50"
+              >
+                <span>{detectingLocation ? 'Detecting...' : 'Detect Coordinates via GPS'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleOpenMapPicker}
+                className="text-[10px] font-heading font-bold text-brand hover:text-brand-accent flex items-center gap-1 transition-colors cursor-pointer border border-brand/20 bg-brand/5 px-2.5 py-1 rounded-card"
+              >
+                <span>Select on Google Map</span>
+              </button>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
                 <label className="text-[10px] font-heading font-bold text-text-secondary uppercase">Manager Name</label>
@@ -676,6 +851,51 @@ export const Stores = () => {
                 className="px-5 py-2 bg-brand hover:bg-brand-accent text-white font-heading font-semibold rounded-pill text-xs shadow cursor-pointer active:scale-95 transition-all"
               >
                 Done
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Map Picker Modal */}
+      {isMapPickerOpen && (
+        <Modal
+          isOpen={isMapPickerOpen}
+          onClose={() => setIsMapPickerOpen(false)}
+          title="Select Store Location Coordinates"
+        >
+          <div className="space-y-4 text-xs font-body text-text-secondary">
+            <p className="text-[10px] text-text-muted leading-relaxed">
+              Click anywhere on the map to place the marker, or drag the red marker to refine the store's position.
+            </p>
+            
+            {/* The Map Div Container */}
+            <div 
+              ref={mapPickerRef} 
+              className="w-full h-80 rounded-card border border-stone-300 bg-stone-100 shadow-inner"
+            />
+
+            <div className="bg-stone-50 border border-stone-200 rounded-card p-3 flex justify-between items-center font-semibold text-text-primary text-[11px]">
+              <span>Selected Coordinates:</span>
+              <span className="font-mono text-brand text-xs">
+                {tempLat ? Number(tempLat).toFixed(6) : '32.726600'}, {tempLng ? Number(tempLng).toFixed(6) : '74.857000'}
+              </span>
+            </div>
+
+            <div className="pt-4 flex justify-between border-t border-border">
+              <button
+                type="button"
+                onClick={() => setIsMapPickerOpen(false)}
+                className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-text-secondary font-heading font-semibold rounded-pill cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmMapLocation}
+                className="px-5 py-2 bg-brand hover:bg-brand-accent text-white font-heading font-semibold rounded-pill shadow-md cursor-pointer"
+              >
+                Confirm Location
               </button>
             </div>
           </div>
