@@ -60,6 +60,7 @@ export const authService = {
             id: user.id,
             name: user.name,
             email: user.email,
+            isSuperAdmin: user.isSuperAdmin,
             permissions
           },
           role: user.role,

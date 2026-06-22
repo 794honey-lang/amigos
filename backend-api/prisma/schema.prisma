@@ -18,6 +18,8 @@ model User {
   addresses     Json     @default("[]")   // array of address objects
   favourites    Json     @default("[]")   // array of menu item IDs
   walletBalance Float    @default(0)
+  disabled      Boolean  @default(false)    // disable/enable user login
+  isSuperAdmin  Boolean  @default(false)    // super admin vs acting admin flag
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   loginEvents   LoginEvent[]

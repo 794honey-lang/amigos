@@ -12,6 +12,7 @@ import Checkout from './pages/Checkout';
 import OrderTracking from './pages/OrderTracking';
 import OrderHistory from './pages/OrderHistory';
 import Profile from './pages/Profile';
+import Offers from './pages/Offers';
 
 // Coming Soon placeholder component for Offers
 const ComingSoon = ({ title }) => (
@@ -47,7 +48,7 @@ function App() {
           <Route path="/order/:orderId" element={<OrderTracking />} />
           <Route path="/orders" element={<OrderHistory />} />
           <Route path="/profile" element={<Profile />} />
-          <Route path="/offers" element={<ComingSoon title="Offers & Coupons" />} />
+          <Route path="/offers" element={<Offers />} />
         </Route>
         
         {/* Catch-all redirect to Splash */}

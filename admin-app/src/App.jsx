@@ -30,6 +30,7 @@ import { Franchises } from './pages/hq/Franchises';
 import { Menu } from './pages/hq/Menu';
 import { Promotions } from './pages/hq/Promotions';
 import { Banners } from './pages/hq/Banners';
+import { Admins } from './pages/hq/Admins';
 import { Reporting as HQReporting } from './pages/hq/Reporting';
 
 import { AdminLayout } from './components/shared/AdminLayout';
@@ -103,6 +104,14 @@ export const App = () => {
             element={
               <ScopedRoute allowedRoles={['corporate']}>
                 <Banners />
+              </ScopedRoute>
+            } 
+          />
+          <Route 
+            path="/hq/admins" 
+            element={
+              <ScopedRoute allowedRoles={['corporate']}>
+                <Admins />
               </ScopedRoute>
             } 
           />

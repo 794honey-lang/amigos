@@ -3,10 +3,11 @@ import { useUiStore } from '../../store/uiStore';
 import { useStoreRegistry } from '../../store/storeRegistry';
 import { AdminLayout } from '../../components/shared/AdminLayout';
 import { Toggle } from '../../components/ui/Toggle';
+import { Modal } from '../../components/ui/Modal';
 import { promotionService } from '../../services/promotionService';
 import { 
   Tag, Plus, Percent, Coins, Calendar, Info, CheckCircle, 
-  MapPin, Building2, Store, Sparkles
+  MapPin, Building2, Store, Sparkles, Edit3, Trash2
 } from 'lucide-react';
 
 export const Promotions = () => {
@@ -18,12 +19,92 @@ export const Promotions = () => {
   const [promoOverrides, setPromoOverrides] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const [expandedPromos, setExpandedPromos] = useState({});
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingPromo, setEditingPromo] = useState(null);
+
+  // Edit form states
+  const [editTitle, setEditTitle] = useState('');
+  const [editDesc, setEditDesc] = useState('');
+  const [editType, setEditType] = useState('percentage');
+  const [editVal, setEditVal] = useState(0);
+  const [editMinOrder, setEditMinOrder] = useState(0);
+  const [editMaxDiscount, setEditMaxDiscount] = useState(0);
+  const [editStartDate, setEditStartDate] = useState('');
+  const [editEndDate, setEditEndDate] = useState('');
 
   const togglePromoExpanded = (code) => {
     setExpandedPromos(prev => ({
       ...prev,
       [code]: !prev[code]
     }));
+  };
+
+  const handleEditPromoClick = (promo) => {
+    setEditingPromo(promo);
+    setEditTitle(promo.title);
+    setEditDesc(promo.description);
+    setEditType(promo.discountType);
+    setEditVal(promo.discountValue);
+    setEditMinOrder(promo.minOrderValue);
+    setEditMaxDiscount(promo.maxDiscount);
+    setEditStartDate(promo.startDate);
+    setEditEndDate(promo.endDate);
+    setIsEditModalOpen(true);
+  };
+
+  const handleUpdatePromoSubmit = async (e) => {
+    e.preventDefault();
+    if (!editTitle || !editDesc) {
+      addToast('Please enter title and description', 'error');
+      return;
+    }
+
+    const payload = {
+      title: editTitle,
+      description: editDesc,
+      discountType: editType,
+      discountValue: Number(editVal) || 0,
+      minOrderValue: Number(editMinOrder) || 0,
+      maxDiscount: Number(editMaxDiscount) || 0,
+      startDate: editStartDate,
+      endDate: editEndDate,
+      scopeType: editingPromo.scopeType,
+      scopeId: editingPromo.scopeId,
+      isActive: editingPromo.isActive
+    };
+
+    const res = await promotionService.updatePromotion(editingPromo.code, payload);
+    if (res.success) {
+      addToast(`Brand coupon ${editingPromo.code} updated successfully!`, 'success');
+      setIsEditModalOpen(false);
+      resetForm();
+      loadData();
+    } else {
+      addToast(res.error || 'Failed to update brand coupon', 'error');
+    }
+  };
+
+  const handleDeletePromoClick = async (code) => {
+    if (window.confirm(`Are you sure you want to permanently delete the brand coupon "${code}"?`)) {
+      const res = await promotionService.deletePromotion(code);
+      if (res.success) {
+        addToast(`Brand coupon "${code}" deleted successfully.`, 'warning');
+        loadData();
+      } else {
+        addToast(res.error || 'Failed to delete brand coupon', 'error');
+      }
+    }
+  };
+
+  const resetForm = () => {
+    setPromoCode('');
+    setPromoTitle('');
+    setPromoDesc('');
+    setPromoVal(10);
+    setMinOrder(299);
+    setMaxDiscount(100);
+    setInitialScopeAll(true);
+    setEditingPromo(null);
   };
 
   // Promo Form States
@@ -341,6 +422,20 @@ export const Promotions = () => {
                             >
                               Disable All
                             </button>
+                            <button
+                              onClick={() => handleEditPromoClick(promo)}
+                              className="px-2.5 py-1 text-[9px] font-heading font-bold text-text-secondary border border-stone-300 hover:bg-stone-100 bg-white rounded-card transition-colors cursor-pointer flex items-center gap-0.5"
+                            >
+                              <Edit3 className="w-3 h-3" />
+                              <span>Edit</span>
+                            </button>
+                            <button
+                              onClick={() => handleDeletePromoClick(promo.code)}
+                              className="px-2.5 py-1 text-[9px] font-heading font-bold text-danger border border-danger/20 hover:bg-red-50 bg-white rounded-card transition-colors cursor-pointer flex items-center gap-0.5"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              <span>Delete</span>
+                            </button>
                           </div>
                         </div>
 
@@ -617,6 +712,140 @@ export const Promotions = () => {
 
         </div>
       </div>
+
+      {/* Edit Brand Offer Modal */}
+      {editingPromo && (
+        <Modal
+          isOpen={isEditModalOpen}
+          onClose={() => { setIsEditModalOpen(false); resetForm(); }}
+          title={`Edit Coupon: ${editingPromo.code}`}
+        >
+          <form onSubmit={handleUpdatePromoSubmit} className="space-y-4 text-xs font-body text-text-secondary">
+            <div className="space-y-1">
+              <label className="text-[10px] font-heading font-bold text-text-secondary uppercase">Coupon Code (Read-Only)</label>
+              <input
+                type="text"
+                disabled
+                value={editingPromo.code}
+                className="w-full px-3 py-2 border border-stone-200 rounded-input bg-stone-50 text-text-muted font-heading font-bold cursor-not-allowed"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] font-heading font-bold text-text-secondary uppercase">Title</label>
+              <input
+                type="text"
+                required
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                placeholder="e.g. Flat 50% discount"
+                className="w-full px-3 py-2 border border-stone-300 rounded-input focus:outline-none focus:border-brand font-body"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] font-heading font-bold text-text-secondary uppercase">Description</label>
+              <input
+                type="text"
+                required
+                value={editDesc}
+                onChange={(e) => setEditDesc(e.target.value)}
+                placeholder="e.g. Save 50% up to ₹150 on orders above ₹199"
+                className="w-full px-3 py-2 border border-stone-300 rounded-input focus:outline-none focus:border-brand font-body"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <label className="text-[10px] font-heading font-bold text-text-secondary uppercase">Discount Type</label>
+                <select
+                  value={editType}
+                  onChange={(e) => setEditType(e.target.value)}
+                  className="w-full px-3 py-2 border border-stone-300 rounded-input focus:outline-none focus:border-brand font-heading font-semibold bg-white"
+                >
+                  <option value="percentage">Percentage (%)</option>
+                  <option value="flat">Flat Price (₹)</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-heading font-bold text-text-secondary uppercase">Value</label>
+                <input
+                  type="number"
+                  required
+                  value={editVal}
+                  onChange={(e) => setEditVal(parseInt(e.target.value) || 0)}
+                  className="w-full px-3 py-2 border border-stone-300 rounded-input focus:outline-none focus:border-brand font-heading font-bold"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <label className="text-[10px] font-heading font-bold text-text-secondary uppercase">Min Order</label>
+                <input
+                  type="number"
+                  required
+                  value={editMinOrder}
+                  onChange={(e) => setEditMinOrder(parseInt(e.target.value) || 0)}
+                  className="w-full px-3 py-2 border border-stone-300 rounded-input focus:outline-none focus:border-brand font-heading font-bold"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-heading font-bold text-text-secondary uppercase">Max Discount</label>
+                <input
+                  type="number"
+                  required
+                  value={editMaxDiscount}
+                  onChange={(e) => setEditMaxDiscount(parseInt(e.target.value) || 0)}
+                  className="w-full px-3 py-2 border border-stone-300 rounded-input focus:outline-none focus:border-brand font-heading font-bold"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <label className="text-[10px] font-heading font-bold text-text-secondary uppercase">Start Date</label>
+                <input
+                  type="date"
+                  required
+                  value={editStartDate}
+                  onChange={(e) => setEditStartDate(e.target.value)}
+                  className="w-full px-3 py-2 border border-stone-300 rounded-input focus:outline-none focus:border-brand font-body"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-heading font-bold text-text-secondary uppercase">End Date</label>
+                <input
+                  type="date"
+                  required
+                  value={editEndDate}
+                  onChange={(e) => setEditEndDate(e.target.value)}
+                  className="w-full px-3 py-2 border border-stone-300 rounded-input focus:outline-none focus:border-brand font-body"
+                />
+              </div>
+            </div>
+
+            <div className="pt-4 flex justify-between border-t border-border">
+              <button
+                type="button"
+                onClick={() => { setIsEditModalOpen(false); resetForm(); }}
+                className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-text-secondary font-heading font-semibold rounded-pill cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 bg-brand hover:bg-brand-accent text-white font-heading font-semibold rounded-pill shadow-md cursor-pointer"
+              >
+                Save Changes
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
     </AdminLayout>
   );
 };

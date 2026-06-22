@@ -48,6 +48,7 @@ export const Sidebar = () => {
       return [
         { to: '/hq', label: 'Dashboard', icon: LayoutDashboard },
         { to: '/hq/franchises', label: 'Franchises', icon: Users },
+        { to: '/hq/admins', label: 'Manage Admins', icon: Users },
         { to: '/hq/menu', label: 'Master Menu', icon: UtensilsCrossed },
         { to: '/hq/promotions', label: 'Promos Applicable', icon: Tag },
         { to: '/hq/banners', label: 'App Banners', icon: Image },

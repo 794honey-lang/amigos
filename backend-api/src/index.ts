@@ -102,6 +102,13 @@ app.post('/api/auth/login', async (req, res) => {
         console.log(`Auto-registered new customer with phone: ${phone}`);
       }
 
+      if (user.disabled) {
+        await prisma.loginEvent.create({
+          data: { userId: user.id, email: user.phone, success: false, ip, userAgent, role: null }
+        });
+        return res.status(403).json({ success: false, error: 'Your account has been disabled. Please contact the administrator.' });
+      }
+
       await prisma.loginEvent.create({
         data: { userId: user.id, email: user.phone, success: true, ip, userAgent, role: user.role }
       });
@@ -116,6 +123,8 @@ app.post('/api/auth/login', async (req, res) => {
         addresses: user.addresses,
         favourites: user.favourites,
         walletBalance: user.walletBalance,
+        disabled: user.disabled,
+        isSuperAdmin: user.isSuperAdmin,
         permissions: []
       };
 
@@ -137,6 +146,13 @@ app.post('/api/auth/login', async (req, res) => {
         return res.status(401).json({ success: false, error: 'Invalid email or password.' });
       }
 
+      if (user.disabled) {
+        await prisma.loginEvent.create({
+          data: { userId: user.id, email: user.email, success: false, ip, userAgent, role: null }
+        });
+        return res.status(403).json({ success: false, error: 'Your account has been disabled. Please contact the administrator.' });
+      }
+
       await prisma.loginEvent.create({
         data: { userId: user.id, email: user.email, success: true, ip, userAgent, role: user.role }
       });
@@ -151,6 +167,8 @@ app.post('/api/auth/login', async (req, res) => {
         addresses: user.addresses,
         favourites: user.favourites,
         walletBalance: user.walletBalance,
+        disabled: user.disabled,
+        isSuperAdmin: user.isSuperAdmin,
         permissions: []
       };
 
@@ -626,6 +644,47 @@ app.put('/api/promotions/:code/status', async (req, res) => {
   }
 });
 
+app.put('/api/promotions/:code', async (req, res) => {
+  const { code } = req.params;
+  const promo = req.body;
+  try {
+    const updated = await prisma.promotion.update({
+      where: { code },
+      data: {
+        title: promo.title,
+        description: promo.description,
+        discountType: promo.discountType,
+        discountValue: Number(promo.discountValue),
+        minOrderValue: Number(promo.minOrderValue),
+        maxDiscount: Number(promo.maxDiscount),
+        startDate: promo.startDate,
+        endDate: promo.endDate,
+        scopeType: promo.scopeType,
+        scopeId: promo.scopeId,
+        isActive: promo.isActive !== false
+      }
+    });
+    res.json({ success: true, data: updated });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.delete('/api/promotions/:code', async (req, res) => {
+  const { code } = req.params;
+  try {
+    await prisma.promoOverride.deleteMany({
+      where: { promoCode: code }
+    });
+    await prisma.promotion.delete({
+      where: { code }
+    });
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // --- 6. ORDERS ENDPOINTS ---
 app.get('/api/orders', async (req, res) => {
   const { storeId, userId, phone } = req.query;
@@ -947,6 +1006,155 @@ app.delete('/api/stores/:id', async (req, res) => {
   const { id } = req.params;
   try {
     await prisma.store.delete({ where: { id } });
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+// Helper to check if caller is Super Admin
+const getCallerUser = async (req: any) => {
+  const callerId = req.headers['x-caller-id'];
+  if (!callerId) return null;
+  return await prisma.user.findUnique({ where: { id: callerId } });
+};
+
+// GET /api/admin/users — fetch all administrators (role: corporate)
+app.get('/api/admin/users', async (req, res) => {
+  try {
+    const admins = await prisma.user.findMany({
+      where: { role: 'corporate' },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        role: true,
+        disabled: true,
+        isSuperAdmin: true,
+        createdAt: true
+      }
+    });
+    res.json({ success: true, data: admins });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/admin/users — create a new administrator
+app.post('/api/admin/users', async (req, res) => {
+  const { name, email, password, phone, isSuperAdmin } = req.body;
+  const caller = await getCallerUser(req);
+  if (!caller || caller.role !== 'corporate') {
+    return res.status(403).json({ success: false, error: 'Unauthorized.' });
+  }
+
+  // Acting admins cannot create Super Admins
+  if (isSuperAdmin && !caller.isSuperAdmin) {
+    return res.status(403).json({ success: false, error: 'Only Super Admins can create other Super Admins.' });
+  }
+
+  try {
+    const newUser = await prisma.user.create({
+      data: {
+        name,
+        email,
+        password,
+        phone: phone || null,
+        role: 'corporate',
+        isSuperAdmin: !!isSuperAdmin,
+        disabled: false
+      }
+    });
+    res.json({ success: true, data: newUser });
+  } catch (error: any) {
+    if (error.code === 'P2002') {
+      const field = error.meta?.target?.[0] || 'email';
+      return res.status(400).json({ success: false, error: `This ${field} is already in use.` });
+    }
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/admin/users/:id — update details or disable login
+app.put('/api/admin/users/:id', async (req, res) => {
+  const { id } = req.params;
+  const { name, email, password, phone, isSuperAdmin, disabled } = req.body;
+  
+  const caller = await getCallerUser(req);
+  if (!caller || caller.role !== 'corporate') {
+    return res.status(403).json({ success: false, error: 'Unauthorized.' });
+  }
+
+  try {
+    const targetUser = await prisma.user.findUnique({ where: { id } });
+    if (!targetUser) {
+      return res.status(404).json({ success: false, error: 'User not found.' });
+    }
+
+    // Protection: If target user is a Super Admin, caller must also be a Super Admin
+    if (targetUser.isSuperAdmin && !caller.isSuperAdmin) {
+      return res.status(403).json({ success: false, error: 'Acting Admins cannot update Super Admin users.' });
+    }
+
+    // Protection: If promoting someone to Super Admin, caller must be a Super Admin
+    if (isSuperAdmin !== undefined && isSuperAdmin !== targetUser.isSuperAdmin && !caller.isSuperAdmin) {
+      return res.status(403).json({ success: false, error: 'Only Super Admins can grant or revoke Super Admin privilege.' });
+    }
+
+    // Protection: Prevent disabling your own account
+    if (id === caller.id && disabled === true) {
+      return res.status(400).json({ success: false, error: 'You cannot disable your own administrator account.' });
+    }
+
+    const updateData: any = {};
+    if (name !== undefined) updateData.name = name;
+    if (email !== undefined) updateData.email = email;
+    if (password !== undefined && password.trim() !== '') updateData.password = password;
+    if (phone !== undefined) updateData.phone = phone || null;
+    if (isSuperAdmin !== undefined) updateData.isSuperAdmin = !!isSuperAdmin;
+    if (disabled !== undefined) updateData.disabled = !!disabled;
+
+    const updated = await prisma.user.update({
+      where: { id },
+      data: updateData
+    });
+
+    res.json({ success: true, data: updated });
+  } catch (error: any) {
+    if (error.code === 'P2002') {
+      const field = error.meta?.target?.[0] || 'email';
+      return res.status(400).json({ success: false, error: `This ${field} is already in use.` });
+    }
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// DELETE /api/admin/users/:id — delete an admin user
+app.delete('/api/admin/users/:id', async (req, res) => {
+  const { id } = req.params;
+  const caller = await getCallerUser(req);
+  if (!caller || caller.role !== 'corporate') {
+    return res.status(403).json({ success: false, error: 'Unauthorized.' });
+  }
+
+  try {
+    const targetUser = await prisma.user.findUnique({ where: { id } });
+    if (!targetUser) {
+      return res.status(404).json({ success: false, error: 'User not found.' });
+    }
+
+    // Protection: If target user is a Super Admin, caller must also be a Super Admin
+    if (targetUser.isSuperAdmin && !caller.isSuperAdmin) {
+      return res.status(403).json({ success: false, error: 'Acting Admins cannot delete Super Admin users.' });
+    }
+
+    // Protection: Prevent deleting yourself
+    if (id === caller.id) {
+      return res.status(400).json({ success: false, error: 'You cannot delete your own administrator account.' });
+    }
+
+    await prisma.user.delete({ where: { id } });
     res.json({ success: true });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });

@@ -66,6 +66,32 @@ export const promotionService = {
     }
   },
 
+  updatePromotion: async (code, promoData) => {
+    try {
+      const res = await fetch(`${API_URL}/promotions/${code}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(promoData)
+      });
+      const data = await res.json();
+      return data;
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  },
+
+  deletePromotion: async (code) => {
+    try {
+      const res = await fetch(`${API_URL}/promotions/${code}`, {
+        method: 'DELETE'
+      });
+      const data = await res.json();
+      return data;
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  },
+
   togglePromotionStatus: async (code, isActive) => {
     try {
       const res = await fetch(`${API_URL}/promotions/${code}/status`, {

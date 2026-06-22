@@ -113,13 +113,15 @@ async function main() {
   // 5. Seed Users
   console.log('Seeding Users...');
   for (const u of mockUsers) {
+    const isSuper = u.email === 'hq@amigos.in';
     await prisma.user.upsert({
       where: { email: u.email },
       update: {
         name: u.name,
         password: u.password,
         role: u.role,
-        storeId: u.storeId
+        storeId: u.storeId,
+        isSuperAdmin: isSuper
       },
       create: {
         id: u.id,
@@ -127,7 +129,8 @@ async function main() {
         name: u.name,
         password: u.password,
         role: u.role,
-        storeId: u.storeId
+        storeId: u.storeId,
+        isSuperAdmin: isSuper
       }
     });
   }
