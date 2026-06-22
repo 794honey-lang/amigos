@@ -68,27 +68,195 @@ app.post('/api/upload-image', upload.single('image'), (req: any, res: any) => {
 });
 
 // --- 1. AUTH / LOGIN ENDPOINTS ---
+
+// Helper: extract client IP from request headers
+const getClientIp = (req: any): string =>
+  req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
+  req.socket?.remoteAddress ||
+  'unknown';
+
 app.post('/api/auth/login', async (req, res) => {
-  const { email, password } = req.body;
-  console.log(`Auth request for: ${email}`);
+  const { phone, otp, email, password } = req.body;
+  const ip = getClientIp(req);
+  const userAgent = req.headers['user-agent'] || 'unknown';
 
   try {
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user || user.password !== password) {
-      return res.status(401).json({ success: false, error: 'Invalid email or password.' });
-    }
+    if (phone) {
+      // Customer OTP login (auto-registers if not found)
+      console.log(`Customer OTP login attempt for phone: ${phone} | IP: ${ip}`);
+      let user = await prisma.user.findUnique({ where: { phone } });
 
-    res.json({
-      success: true,
-      data: {
+      if (!user) {
+        // Auto-register
+        user = await prisma.user.create({
+          data: {
+            phone,
+            password: 'otp-authenticated',
+            name: 'Customer User',
+            role: 'customer',
+            addresses: [],
+            favourites: [],
+            walletBalance: 0
+          }
+        });
+        console.log(`Auto-registered new customer with phone: ${phone}`);
+      }
+
+      await prisma.loginEvent.create({
+        data: { userId: user.id, email: user.phone, success: true, ip, userAgent, role: user.role }
+      });
+
+      const responsePayload = {
         id: user.id,
+        phone: user.phone,
         name: user.name,
         email: user.email,
         role: user.role,
         storeId: user.storeId,
-        permissions: [] // Will be populated dynamically on frontend or role-based
+        addresses: user.addresses,
+        favourites: user.favourites,
+        walletBalance: user.walletBalance,
+        permissions: []
+      };
+
+      return res.json({
+        success: true,
+        token: `mock-jwt-token-${user.id}`,
+        user: responsePayload,
+        data: responsePayload
+      });
+    } else if (email) {
+      // Staff / Admin login
+      console.log(`Staff login attempt for email: ${email} | IP: ${ip}`);
+      const user = await prisma.user.findUnique({ where: { email } });
+
+      if (!user || user.password !== password) {
+        await prisma.loginEvent.create({
+          data: { userId: user?.id || null, email, success: false, ip, userAgent, role: null }
+        });
+        return res.status(401).json({ success: false, error: 'Invalid email or password.' });
+      }
+
+      await prisma.loginEvent.create({
+        data: { userId: user.id, email: user.email, success: true, ip, userAgent, role: user.role }
+      });
+
+      const responsePayload = {
+        id: user.id,
+        phone: user.phone,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        storeId: user.storeId,
+        addresses: user.addresses,
+        favourites: user.favourites,
+        walletBalance: user.walletBalance,
+        permissions: []
+      };
+
+      return res.json({
+        success: true,
+        token: `mock-jwt-token-${user.id}`,
+        user: responsePayload,
+        data: responsePayload
+      });
+    } else {
+      return res.status(400).json({ success: false, error: 'Missing phone or email parameter.' });
+    }
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/users/:idOrPhone — fetch full profile (addresses, favourites, walletBalance)
+app.get('/api/users/:idOrPhone', async (req, res) => {
+  try {
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { id: req.params.idOrPhone },
+          { phone: req.params.idOrPhone }
+        ]
       }
     });
+    if (!user) return res.status(404).json({ success: false, error: 'User not found.' });
+    res.json({
+      success: true,
+      data: {
+        id: user.id,
+        phone: user.phone,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        storeId: user.storeId,
+        addresses: user.addresses,
+        favourites: user.favourites,
+        walletBalance: user.walletBalance
+      }
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/users/:idOrPhone/profile — persist addresses, favourites, name, walletBalance to PostgreSQL
+app.put('/api/users/:idOrPhone/profile', async (req, res) => {
+  const { name, email, addresses, favourites, walletBalance } = req.body;
+  try {
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { id: req.params.idOrPhone },
+          { phone: req.params.idOrPhone }
+        ]
+      }
+    });
+    if (!user) return res.status(404).json({ success: false, error: 'User not found.' });
+
+    const updateData: any = {};
+    if (name !== undefined) updateData.name = name;
+    if (email !== undefined) updateData.email = email;
+    if (addresses !== undefined) updateData.addresses = addresses;
+    if (favourites !== undefined) updateData.favourites = favourites;
+    if (walletBalance !== undefined) updateData.walletBalance = walletBalance;
+
+    const updated = await prisma.user.update({
+      where: { id: user.id },
+      data: updateData
+    });
+    console.log(`Profile updated for user ID: ${updated.id}`);
+    res.json({
+      success: true,
+      data: {
+        id: updated.id,
+        phone: updated.phone,
+        name: updated.name,
+        email: updated.email,
+        role: updated.role,
+        storeId: updated.storeId,
+        addresses: updated.addresses,
+        favourites: updated.favourites,
+        walletBalance: updated.walletBalance
+      }
+    });
+  } catch (error: any) {
+    if (error.code === 'P2002') {
+      const field = error.meta?.target?.[0] || 'email';
+      return res.status(400).json({ success: false, error: `This ${field} is already in use by another account.` });
+    }
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/admin/login-events — HQ audit log (newest 200)
+app.get('/api/admin/login-events', async (req, res) => {
+  try {
+    const events = await prisma.loginEvent.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+      select: { id: true, email: true, success: true, ip: true, userAgent: true, role: true, createdAt: true }
+    });
+    res.json({ success: true, data: events });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -460,12 +628,24 @@ app.put('/api/promotions/:code/status', async (req, res) => {
 
 // --- 6. ORDERS ENDPOINTS ---
 app.get('/api/orders', async (req, res) => {
-  const { storeId } = req.query;
+  const { storeId, userId, phone } = req.query;
   try {
     const whereClause: any = {};
     if (storeId) {
       const storeIds = (storeId as string).split(',');
       whereClause.storeId = { in: storeIds };
+    }
+    if (userId) {
+      whereClause.userId = userId as string;
+    } else if (phone) {
+      // Find user by phone
+      const u = await prisma.user.findUnique({ where: { phone: phone as string } });
+      if (u) {
+        whereClause.userId = u.id;
+      } else {
+        // Fallback: empty match
+        whereClause.userId = 'non-existent';
+      }
     }
     const orders = await prisma.order.findMany({
       where: whereClause,
@@ -509,6 +689,15 @@ app.post('/api/orders', async (req, res) => {
     const newId = `A${nextNum}`;
     const timeString = new Date().toISOString();
 
+    // Check if customer exists in the user table to associate the order
+    let userId: string | null = null;
+    if (payload.customer?.phone) {
+      const u = await prisma.user.findUnique({ where: { phone: payload.customer.phone } });
+      if (u) {
+        userId = u.id;
+      }
+    }
+
     const newOrder = await prisma.order.create({
       data: {
         id: newId,
@@ -525,11 +714,12 @@ app.post('/api/orders', async (req, res) => {
         paymentMethod: payload.paymentMethod || 'UPI',
         address: payload.address,
         customer: payload.customer || { name: 'Rahul Sharma', phone: '9876543210' },
-        items: payload.items
+        items: payload.items,
+        userId: userId
       }
     });
 
-    console.log(`Placed new order: ${newId}`);
+    console.log(`Placed new order: ${newId} (User ID: ${userId || 'Guest'})`);
     res.json({ success: true, data: newOrder });
   } catch (error: any) {
     console.error('Error placing order:', error);
@@ -733,6 +923,19 @@ app.put('/api/stores/:id', async (req, res) => {
         managerName: payload.managerName,
         phone: payload.phone
       }
+    });
+    res.json({ success: true, data: updated });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+app.put('/api/stores/:id/delivery-zone', async (req, res) => {
+  const { id } = req.params;
+  const { deliveryZone } = req.body;
+  try {
+    const updated = await prisma.store.update({
+      where: { id },
+      data: { deliveryZone }
     });
     res.json({ success: true, data: updated });
   } catch (error: any) {

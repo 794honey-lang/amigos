@@ -8,12 +8,32 @@ generator client {
 }
 
 model User {
+  id            String   @id @default(uuid())
+  phone         String?  @unique             // optional mobile number, must be unique if set
+  email         String?  @unique            // optional email, unique
+  password      String                     // plain text for dev, hash in prod
+  name          String
+  role          String   // "corporate", "franchise", "store", "customer"
+  storeId       String?  // set for store managers
+  addresses     Json     @default("[]")   // array of address objects
+  favourites    Json     @default("[]")   // array of menu item IDs
+  walletBalance Float    @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  loginEvents   LoginEvent[]
+  orders        Order[]
+}
+
+
+model LoginEvent {
   id        String   @id @default(uuid())
-  email     String   @unique
-  password  String   // In production, hashed password. For our mocks, we can support text/hashed.
-  name      String
-  role      String   // "corporate", "franchise", "store"
-  storeId   String?  // Relates if store manager
+  userId    String?  // null for failed logins (unknown user)
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  email     String   // The email/phone attempted
+  success   Boolean  // true = successful login, false = failed attempt
+  ip        String?  // Client IP address
+  userAgent String?  // Browser/device string
+  role      String?  // Role of user if login succeeded
   createdAt DateTime @default(now())
 }
 
@@ -92,6 +112,8 @@ model Order {
   address       Json
   customer      Json        // { name, phone }
   items         Json        // JSON list of ordered items (with sizes, crusts, toppings)
+  userId        String?     // reference to User.id
+  user          User?       @relation(fields: [userId], references: [id])
 }
 
 model PromoOverride {
@@ -127,6 +149,5 @@ model Store {
   managerName String
   phone       String
   createdAt   DateTime  @default(now())
+  deliveryZone Json     @default("{}") // Delivery zone config for the store
 }
-
-

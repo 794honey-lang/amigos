@@ -92,36 +92,13 @@ export const Profile = () => {
     e.preventDefault();
     if (!editName.trim()) return;
 
-    // Check if phone changed
-    const phoneChanged = editPhone.trim() !== (user?.phone || '');
-
-    if (phoneChanged) {
-      // Validate phone number format (must match our standard rule: 10 digits, starts with 6-9)
-      if (editPhone.length !== 10 || !/^[6-9]/.test(editPhone) || !/^\d+$/.test(editPhone)) {
-        addToast('Invalid mobile number. Must be 10 digits starting with 6, 7, 8, or 9.', 'error');
-        return;
-      }
-
-      setOtpLoading(true);
-      const res = await authService.sendOtp(editPhone);
-      setOtpLoading(false);
-
-      if (res.success) {
-        addToast(res.message, 'success');
-        setVerifyingOtp(true);
-      } else {
-        addToast(res.error, 'error');
-      }
-    } else {
-      // If phone did not change, update directly
-      updateUser({
-        ...user,
-        name: editName,
-        email: editEmail
-      });
-      addToast('Profile updated!', 'success');
-      setEditProfileOpen(false);
-    }
+    updateUser({
+      ...user,
+      name: editName,
+      email: editEmail
+    });
+    addToast('Profile updated!', 'success');
+    setEditProfileOpen(false);
   };
 
   const handleVerifyOtpForPhoneChange = async (e) => {
@@ -159,60 +136,67 @@ export const Profile = () => {
     }
     
     setDetectingLocation(true);
+    addToast('Requesting GPS access...', 'info');
+
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         const { latitude, longitude } = position.coords;
         setDetectedCoords({ latitude, longitude });
         
         try {
-          // Fetch real address details dynamically using Nominatim OpenStreetMap API
-          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`);
-          if (res.ok) {
-            const geodata = await res.json();
-            const addr = geodata.address || {};
-            
-            // Build address details
-            const road = addr.road || addr.suburb || addr.neighbourhood || '';
-            const area = addr.suburb || addr.neighbourhood || addr.village || addr.city_district || '';
-            const lineVal = [road, area].filter(Boolean).join(', ') || 'Detected Location';
-            
-            const cityVal = addr.city || addr.town || addr.state_district || addr.state || '';
-            const pincodeVal = addr.postcode || '';
-            
-            setValue('line', lineVal);
-            setValue('city', cityVal);
-            
-            // Clean and format pincode
-            const cleanPincode = pincodeVal.replace(/\D/g, '').substring(0, 6);
-            if (cleanPincode.length === 6) {
-              setValue('pincode', cleanPincode);
+          // Nominatim OpenStreetMap reverse geocoding
+          // User-Agent header is REQUIRED by OSM usage policy
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`,
+            {
+              headers: {
+                'User-Agent': 'AmigosApp/1.0 (amigosfinedine@gmail.com)',
+                'Accept-Language': 'en'
+              }
             }
-            
-            if (addr.suburb || addr.neighbourhood) {
-              setValue('landmark', addr.suburb || addr.neighbourhood);
-            }
-            
-            addToast(`Location resolved: ${cityVal}`, 'success');
-          } else {
-            throw new Error('OSM Reverse geocoding failed');
-          }
+          );
+
+          if (!res.ok) throw new Error(`Nominatim error: ${res.status}`);
+          const geodata = await res.json();
+          const addr = geodata.address || {};
+          
+          // Build address line
+          const road = addr.road || addr.pedestrian || addr.path || addr.suburb || addr.neighbourhood || '';
+          const area = addr.suburb || addr.neighbourhood || addr.village || addr.city_district || '';
+          const lineVal = [road, area].filter(Boolean).join(', ') || geodata.display_name?.split(',').slice(0, 2).join(', ') || 'Detected Location';
+          
+          const cityVal = addr.city || addr.town || addr.county || addr.state_district || addr.state || '';
+          const pincodeVal = (addr.postcode || '').replace(/\D/g, '').substring(0, 6);
+          const landmarkVal = addr.amenity || addr.building || addr.suburb || addr.neighbourhood || '';
+
+          // setValue with full options so react-hook-form shows value in inputs
+          const setOpts = { shouldValidate: true, shouldDirty: true, shouldTouch: true };
+          setValue('line', lineVal, setOpts);
+          setValue('city', cityVal, setOpts);
+          if (pincodeVal.length === 6) setValue('pincode', pincodeVal, setOpts);
+          if (landmarkVal) setValue('landmark', landmarkVal, setOpts);
+          
+          addToast(`✅ Location detected: ${cityVal || 'your area'}`, 'success');
         } catch (e) {
-          console.error("Reverse geocoding error", e);
-          // Fallback Srinagar details if fetch fails
-          setValue('line', ' Hazratbal Rd, near University of Kashmir');
-          setValue('city', 'Srinagar');
-          setValue('pincode', '190006');
-          setValue('landmark', 'University Gate');
-          addToast(`Coords detected: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`, 'success');
+          console.error('Reverse geocoding error:', e);
+          // Fill coords at minimum so user can see we got GPS
+          const setOpts = { shouldValidate: false, shouldDirty: true, shouldTouch: true };
+          setValue('line', `Lat: ${latitude.toFixed(5)}, Lng: ${longitude.toFixed(5)}`, setOpts);
+          addToast(`GPS found (${latitude.toFixed(4)}, ${longitude.toFixed(4)}) — please fill address details`, 'warning');
         }
         setDetectingLocation(false);
       },
       (error) => {
-        console.error(error);
-        addToast('Failed to detect location. Please type manually.', 'error');
         setDetectingLocation(false);
+        const msgs = {
+          1: 'Location access denied. Please allow location in browser settings and try again.',
+          2: 'Location unavailable. Try moving to an open area.',
+          3: 'Location request timed out. Please try again.'
+        };
+        addToast(msgs[error.code] || 'Failed to detect location. Please type manually.', 'error');
+        console.error('Geolocation error:', error.code, error.message);
       },
-      { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 }
     );
   };
 
@@ -495,22 +479,15 @@ export const Profile = () => {
                 <Input
                   label="Login Mobile Number"
                   value={editPhone}
-                  onChange={(e) => setEditPhone(e.target.value.replace(/\D/g, ''))}
                   placeholder="10-digit mobile number"
-                  maxLength={10}
-                  type="tel"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  disabled={otpLoading}
+                  disabled={true}
                 />
               </div>
             </div>
             
-            {editPhone.trim() !== (user?.phone || '') && editPhone.length === 10 && (
-              <p className="text-[10px] text-brand font-heading font-medium leading-none px-1">
-                * Changing phone number requires OTP verification.
-              </p>
-            )}
+            <p className="text-[10px] text-text-muted font-heading font-medium leading-none px-1">
+              * Mobile number cannot be changed.
+            </p>
 
             <Button
               type="submit"

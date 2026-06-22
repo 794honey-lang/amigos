@@ -14,7 +14,7 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
   return d;
 };
 
-const calculateTotals = (items, deliveryType, coupon, deliveryAddress) => {
+const calculateTotals = (items, deliveryType, coupon, deliveryAddress, storeZoneConfig = null) => {
   if (items.length === 0) {
     return {
       itemTotal: 0,
@@ -59,8 +59,9 @@ const calculateTotals = (items, deliveryType, coupon, deliveryAddress) => {
   let freeDeliveryMinOrder = 0;
 
   if (deliveryType === 'delivery') {
-    // 1. Get delivery zone configuration for store_001 (default active store for Jammu)
-    let storeZone = {
+    // storeZoneConfig is injected by checkout page via setStoreZoneConfig()
+    // Default safe values used if not yet set
+    let storeZone = storeZoneConfig || {
       mode: 'radius',
       radiusKm: 5,
       deliveryCharge: 30,
@@ -69,21 +70,6 @@ const calculateTotals = (items, deliveryType, coupon, deliveryAddress) => {
       enableFreeDelivery: false,
       freeDeliveryMinOrder: 500
     };
-
-    try {
-      if (typeof window !== 'undefined') {
-        const stored = window.localStorage.getItem('amigos_delivery_zones');
-        if (stored) {
-          const zones = JSON.parse(stored);
-          const activeZone = zones.find(z => z.storeId === 'store_001');
-          if (activeZone) {
-            storeZone = { ...storeZone, ...activeZone };
-          }
-        }
-      }
-    } catch (e) {
-      console.error("Failed to load delivery zones in cartStore", e);
-    }
 
     enableFreeDelivery = !!storeZone.enableFreeDelivery;
     freeDeliveryMinOrder = Number(storeZone.freeDeliveryMinOrder || 0);
@@ -183,6 +169,7 @@ export const useCartStore = create(
       deliveryType: 'delivery', // 'delivery' | 'takeaway'
       coupon: null,
       deliveryAddress: null,
+      storeZoneConfig: null,   // Injected by Checkout from store's delivery zone config
       
       // Totals
       itemTotal: 0,
@@ -199,13 +186,19 @@ export const useCartStore = create(
       setDeliveryType: (type) => {
         set({ deliveryType: type });
         const state = get();
-        set(calculateTotals(state.items, type, state.coupon, state.deliveryAddress));
+        set(calculateTotals(state.items, type, state.coupon, state.deliveryAddress, state.storeZoneConfig));
       },
 
       setDeliveryAddress: (address) => {
         set({ deliveryAddress: address });
         const state = get();
-        set(calculateTotals(state.items, state.deliveryType, state.coupon, address));
+        set(calculateTotals(state.items, state.deliveryType, state.coupon, address, state.storeZoneConfig));
+      },
+
+      setStoreZoneConfig: (zoneConfig) => {
+        set({ storeZoneConfig: zoneConfig });
+        const state = get();
+        set(calculateTotals(state.items, state.deliveryType, state.coupon, state.deliveryAddress, zoneConfig));
       },
 
       addItem: (newItem) => {
@@ -237,7 +230,7 @@ export const useCartStore = create(
 
         set({ items: updatedItems });
         const updatedState = get();
-        set(calculateTotals(updatedState.items, updatedState.deliveryType, updatedState.coupon, updatedState.deliveryAddress));
+        set(calculateTotals(updatedState.items, updatedState.deliveryType, updatedState.coupon, updatedState.deliveryAddress, updatedState.storeZoneConfig));
       },
 
       removeItem: (itemId) => {
@@ -249,7 +242,7 @@ export const useCartStore = create(
         // If cart is empty, remove coupon too
         const finalCoupon = updatedItems.length === 0 ? null : updatedState.coupon;
         set({ coupon: finalCoupon });
-        set(calculateTotals(updatedItems, updatedState.deliveryType, finalCoupon, updatedState.deliveryAddress));
+        set(calculateTotals(updatedItems, updatedState.deliveryType, finalCoupon, updatedState.deliveryAddress, updatedState.storeZoneConfig));
       },
 
       updateQty: (itemId, change) => {
@@ -269,19 +262,19 @@ export const useCartStore = create(
         const updatedState = get();
         const finalCoupon = updatedItems.length === 0 ? null : updatedState.coupon;
         set({ coupon: finalCoupon });
-        set(calculateTotals(updatedItems, updatedState.deliveryType, finalCoupon, updatedState.deliveryAddress));
+        set(calculateTotals(updatedItems, updatedState.deliveryType, finalCoupon, updatedState.deliveryAddress, updatedState.storeZoneConfig));
       },
 
       applyCoupon: (couponData) => {
         set({ coupon: couponData });
         const state = get();
-        set(calculateTotals(state.items, state.deliveryType, couponData, state.deliveryAddress));
+        set(calculateTotals(state.items, state.deliveryType, couponData, state.deliveryAddress, state.storeZoneConfig));
       },
 
       removeCoupon: () => {
         set({ coupon: null });
         const state = get();
-        set(calculateTotals(state.items, state.deliveryType, null, state.deliveryAddress));
+        set(calculateTotals(state.items, state.deliveryType, null, state.deliveryAddress, state.storeZoneConfig));
       },
 
       clearCart: () => {

@@ -5,7 +5,15 @@ const activeSimulations = {};
 export const orderService = {
   async getOrders() {
     try {
-      const res = await fetch(`${API_URL}/orders`);
+      const storedUser = localStorage.getItem('amigos_auth_user');
+      let url = `${API_URL}/orders`;
+      if (storedUser) {
+        const user = JSON.parse(storedUser);
+        if (user && user.role === 'customer' && user.phone) {
+          url += `?phone=${user.phone}`;
+        }
+      }
+      const res = await fetch(url);
       return await res.json();
     } catch (e) {
       return { success: false, error: e.message };

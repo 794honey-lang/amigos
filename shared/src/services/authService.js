@@ -2,9 +2,10 @@ import { mockCustomerUser, mockStaffUser } from '../mocks/mockUser';
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const API_URL = 'http://localhost:5050/api';
+
 export const authService = {
   async sendOtp(phone) {
-    await delay(300);
     // Simple 10 digit validation
     if (!phone || phone.length < 10) {
       return { success: false, error: 'Please enter a valid 10-digit mobile number' };
@@ -13,22 +14,28 @@ export const authService = {
   },
 
   async verifyOtp(phone, otp) {
-    await delay(500);
     if (!otp || otp.length !== 6) {
       return { success: false, error: 'Invalid OTP. Please enter a 6-digit code.' };
     }
     
-    // Any 6 digits succeed in mock mode
-    const user = {
-      ...mockCustomerUser,
-      phone: phone
-    };
-    
-    return {
-      success: true,
-      token: 'mock-jwt-token-12345',
-      user
-    };
+    try {
+      const res = await fetch(`${API_URL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, otp })
+      });
+      const data = await res.json();
+      if (data.success) {
+        return {
+          success: true,
+          token: data.token,
+          user: data.user
+        };
+      }
+      return { success: false, error: data.error || 'Verification failed' };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
   },
 
   async loginWithGoogle() {

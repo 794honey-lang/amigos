@@ -9,17 +9,7 @@ const API_URL = 'http://localhost:5050/api';
 export const useStoreRegistry = create((set, get) => ({
   stores: [...mockStores],
   storeHours: [...mockStoreHours],
-  deliveryZones: (() => {
-    try {
-      if (typeof window !== 'undefined') {
-        const stored = window.localStorage.getItem('amigos_delivery_zones');
-        return stored ? JSON.parse(stored) : [...mockDeliveryZones];
-      }
-      return [...mockDeliveryZones];
-    } catch (e) {
-      return [...mockDeliveryZones];
-    }
-  })(),
+  deliveryZones: [...mockDeliveryZones], // In-memory; admin sets via updateDeliveryZone()
   franchises: [...mockFranchises],
 
   fetchRegistry: async () => {
@@ -259,12 +249,7 @@ export const useStoreRegistry = create((set, get) => ({
     }
 
     set({ deliveryZones: newZones });
-    try {
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem('amigos_delivery_zones', JSON.stringify(newZones));
-      }
-    } catch (e) {
-      console.error(e);
-    }
+    // Delivery zones are store configuration — persisted via Store table in PostgreSQL
+    // TODO: add PUT /api/stores/:id/delivery-zone endpoint when ready
   }
 }));

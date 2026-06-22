@@ -11,7 +11,7 @@ import { Button } from '@shared/components/ui/Button';
 
 export const Checkout = () => {
   const navigate = useNavigate();
-  const { user } = useAuthStore();
+  const { user, updateUser } = useAuthStore();
   const { 
     items, deliveryType, setDeliveryType, toPay, deliveryFee, itemTotal, taxes, discount, clearCart,
     setDeliveryAddress, isOutOfDeliveryZone, minOrderViolation, distanceKm,
@@ -24,7 +24,16 @@ export const Checkout = () => {
   const [paymentMethod, setPaymentMethod] = useState('UPI');
   const [selectedAddressIndex, setSelectedAddressIndex] = useState(0);
   const [addressSheetOpen, setAddressSheetOpen] = useState(false);
+  const [addAddressSheetOpen, setAddAddressSheetOpen] = useState(false);
   const [minOrderThreshold, setMinOrderThreshold] = useState(200);
+
+  // Quick Address States
+  const [newAddrLabel, setNewAddrLabel] = useState('Home');
+  const [newAddrLine, setNewAddrLine] = useState('');
+  const [newAddrCity, setNewAddrCity] = useState('Jammu');
+  const [newAddrPincode, setNewAddrPincode] = useState('');
+  const [newAddrLandmark, setNewAddrLandmark] = useState('');
+  const [newAddrError, setNewAddrError] = useState('');
 
   const selectedAddress = user?.addresses?.[selectedAddressIndex] || {
     label: 'Guest Location',
@@ -35,12 +44,12 @@ export const Checkout = () => {
 
   // Sync selected address with the cart store to calculate dynamic delivery fee
   useEffect(() => {
-    if (deliveryType === 'delivery') {
+    if (deliveryType === 'delivery' && user?.addresses && user.addresses.length > 0) {
       setDeliveryAddress(selectedAddress);
     } else {
       setDeliveryAddress(null);
     }
-  }, [selectedAddress, deliveryType]);
+  }, [selectedAddress, deliveryType, user]);
 
   // Load active store's minimum order threshold dynamically
   useEffect(() => {
@@ -56,10 +65,65 @@ export const Checkout = () => {
     } catch (e) {}
   }, []);
 
+  const handleAddAddress = async (e) => {
+    e.preventDefault();
+    if (!newAddrLabel.trim()) {
+      setNewAddrError('Label is required (e.g. Home, Office)');
+      return;
+    }
+    if (newAddrLine.trim().length < 5) {
+      setNewAddrError('Address line must be at least 5 characters');
+      return;
+    }
+    if (!newAddrCity.trim()) {
+      setNewAddrError('City is required');
+      return;
+    }
+    if (newAddrPincode.trim().length !== 6 || !/^\d+$/.test(newAddrPincode)) {
+      setNewAddrError('Pincode must be exactly 6 digits');
+      return;
+    }
+
+    const newAddress = {
+      id: 'addr_' + Date.now(),
+      label: newAddrLabel,
+      line: newAddrLine,
+      city: newAddrCity,
+      pincode: newAddrPincode,
+      landmark: newAddrLandmark
+    };
+
+    const currentAddresses = user?.addresses || [];
+    const updatedUser = {
+      ...user,
+      addresses: [...currentAddresses, newAddress]
+    };
+
+    await updateUser(updatedUser);
+    setSelectedAddressIndex(currentAddresses.length); // Select new address
+    addToast('Address added and selected!', 'success');
+    
+    // Reset form
+    setNewAddrLine('');
+    setNewAddrPincode('');
+    setNewAddrLandmark('');
+    setNewAddrError('');
+    setAddAddressSheetOpen(false);
+  };
+
   const handlePay = async () => {
     if (items.length === 0) {
       addToast('Your cart is empty', 'error');
       return;
+    }
+
+    if (deliveryType === 'delivery') {
+      const hasAddresses = user?.addresses && user.addresses.length > 0;
+      if (!hasAddresses || selectedAddress.label === 'Guest Location') {
+        addToast('Please add a delivery address to proceed.', 'warning');
+        setAddAddressSheetOpen(true);
+        return;
+      }
     }
 
     const payload = {
@@ -138,30 +202,57 @@ export const Checkout = () => {
           <div className="space-y-2.5">
             <div className="flex items-center justify-between px-1">
               <h3 className="font-heading font-bold text-xs text-text-primary">Delivery Address</h3>
-              {user?.addresses && user.addresses.length > 0 && (
+              {user?.addresses && user.addresses.length > 0 ? (
                 <button
                   onClick={() => setAddressSheetOpen(true)}
                   className="text-xs font-heading font-bold text-brand hover:underline"
                 >
                   Change
                 </button>
+              ) : (
+                <button
+                  onClick={() => setAddAddressSheetOpen(true)}
+                  className="text-xs font-heading font-bold text-brand hover:underline"
+                >
+                  + Add New
+                </button>
               )}
             </div>
 
-            <Card className="p-4 flex items-start gap-3">
-              <div className="p-2 rounded-full bg-brand/5 text-brand shrink-0">
-                <MapPin className="w-5 h-5" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <h4 className="font-heading font-bold text-xs text-text-primary">
-                  {selectedAddress.label}
-                </h4>
-                <p className="text-[10px] text-text-secondary font-body mt-1 leading-normal">
-                  {selectedAddress.line}, {selectedAddress.city} - {selectedAddress.pincode}
-                  {selectedAddress.landmark && <span className="block text-text-muted mt-0.5">Landmark: {selectedAddress.landmark}</span>}
-                </p>
-              </div>
-            </Card>
+            {user?.addresses && user.addresses.length > 0 ? (
+              <Card className="p-4 flex items-start gap-3">
+                <div className="p-2 rounded-full bg-brand/5 text-brand shrink-0">
+                  <MapPin className="w-5 h-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-heading font-bold text-xs text-text-primary">
+                    {selectedAddress.label}
+                  </h4>
+                  <p className="text-[10px] text-text-secondary font-body mt-1 leading-normal">
+                    {selectedAddress.line}, {selectedAddress.city} - {selectedAddress.pincode}
+                    {selectedAddress.landmark && <span className="block text-text-muted mt-0.5">Landmark: {selectedAddress.landmark}</span>}
+                  </p>
+                </div>
+              </Card>
+            ) : (
+              <Card 
+                onClick={() => setAddAddressSheetOpen(true)}
+                className="p-5 flex flex-col items-center justify-center gap-2 border-dashed border-2 border-stone-300 hover:border-brand cursor-pointer text-center bg-white"
+              >
+                <div className="p-2.5 rounded-full bg-brand/5 text-brand">
+                  <MapPin className="w-6 h-6" />
+                </div>
+                <div>
+                  <h4 className="font-heading font-bold text-xs text-text-primary">No Address Selected</h4>
+                  <p className="text-[9px] text-text-secondary font-body mt-1">
+                    Add a delivery address to complete your order.
+                  </p>
+                </div>
+                <Button size="sm" variant="outline" className="mt-2 text-[10px] font-heading font-bold px-4 py-1.5 rounded-pill">
+                  + Add Address
+                </Button>
+              </Card>
+            )}
 
             {enableFreeDelivery && (
               itemTotal >= freeDeliveryMinOrder ? (
@@ -332,6 +423,96 @@ export const Checkout = () => {
             </Card>
           ))}
         </div>
+      </BottomSheet>
+
+      {/* Quick Add Address Bottom Sheet */}
+      <BottomSheet
+        isOpen={addAddressSheetOpen}
+        onClose={() => {
+          setAddAddressSheetOpen(false);
+          setNewAddrError('');
+        }}
+        title="Add Delivery Address"
+      >
+        <form onSubmit={handleAddAddress} className="space-y-4 pb-6 text-left">
+          {newAddrError && (
+            <div className="bg-red-50 border border-red-200 text-danger rounded-card p-3 text-[10px] font-heading font-bold leading-normal">
+              {newAddrError}
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="font-heading font-bold text-[10px] text-text-secondary block mb-1">
+                Address Label (e.g. Home, Office)
+              </label>
+              <input
+                type="text"
+                value={newAddrLabel}
+                onChange={(e) => setNewAddrLabel(e.target.value)}
+                placeholder="Home"
+                className="w-full bg-stone-50 border border-stone-300 rounded-input px-3.5 py-2.5 text-xs font-body text-text-primary focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand/30 transition-all"
+              />
+            </div>
+            <div>
+              <label className="font-heading font-bold text-[10px] text-text-secondary block mb-1">
+                City
+              </label>
+              <input
+                type="text"
+                value={newAddrCity}
+                onChange={(e) => setNewAddrCity(e.target.value)}
+                placeholder="Jammu"
+                className="w-full bg-stone-50 border border-stone-300 rounded-input px-3.5 py-2.5 text-xs font-body text-text-primary focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand/30 transition-all"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="font-heading font-bold text-[10px] text-text-secondary block mb-1">
+              Flat / House No. / Building / Street
+            </label>
+            <input
+              type="text"
+              value={newAddrLine}
+              onChange={(e) => setNewAddrLine(e.target.value)}
+              placeholder="e.g. Flat 101, Civil Lines"
+              className="w-full bg-stone-50 border border-stone-300 rounded-input px-3.5 py-2.5 text-xs font-body text-text-primary focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand/30 transition-all"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="font-heading font-bold text-[10px] text-text-secondary block mb-1">
+                Pincode (6-digit)
+              </label>
+              <input
+                type="text"
+                maxLength={6}
+                value={newAddrPincode}
+                onChange={(e) => setNewAddrPincode(e.target.value.replace(/\D/g, ''))}
+                placeholder="180001"
+                className="w-full bg-stone-50 border border-stone-300 rounded-input px-3.5 py-2.5 text-xs font-body text-text-primary focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand/30 transition-all"
+              />
+            </div>
+            <div>
+              <label className="font-heading font-bold text-[10px] text-text-secondary block mb-1">
+                Landmark (Optional)
+              </label>
+              <input
+                type="text"
+                value={newAddrLandmark}
+                onChange={(e) => setNewAddrLandmark(e.target.value)}
+                placeholder="e.g. Near park"
+                className="w-full bg-stone-50 border border-stone-300 rounded-input px-3.5 py-2.5 text-xs font-body text-text-primary focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand/30 transition-all"
+              />
+            </div>
+          </div>
+
+          <Button type="submit" variant="primary" fullWidth className="py-3 mt-4">
+            Save & Deliver Here
+          </Button>
+        </form>
       </BottomSheet>
     </div>
   );
